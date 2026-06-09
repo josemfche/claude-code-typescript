@@ -14,6 +14,10 @@ calling, agent loop, and how to integrate multiple tools into an AI assistant.
 **Note**: If you're viewing this repo on GitHub, head over to
 [codecrafters.io](https://codecrafters.io) to try the challenge.
 
+# Project
+
+Chemical expiry period: 6 months
+
 # Passing the first stage
 
 The entry point for your `claude-code` implementation is in `app/main.ts`. Study

@@ -1,6 +1,5 @@
 import { readFile } from "node:fs/promises";
 import { Effect } from "effect";
-import type { AssistantMessage } from "./domain.ts";
 import { FileReadFailed, type ProgramError } from "./errors.ts";
 import {
   decodeReadToolArgs,
@@ -34,14 +33,4 @@ export const executeToolCall = (toolCall: FunctionToolCall) =>
   Effect.gen(function* () {
     const name = yield* decodeToolName(toolCall.function.name);
     return yield* dispatchToolCall(toolCall, name);
-  });
-
-export const handleAssistantMessage = (message: AssistantMessage) =>
-  Effect.gen(function* () {
-    switch (message._tag) {
-      case "Text":
-        return message.content;
-      case "ToolCall":
-        return yield* executeToolCall(message.raw);
-    }
   });

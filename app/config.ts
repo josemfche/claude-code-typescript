@@ -8,6 +8,7 @@ export const AppConfig = Config.all({
   ),
   model: Config.string("OPENROUTER_MODEL").pipe(
     Config.withDefault("tencent/hy3-preview"),
+    // Config.withDefault("anthropic/claude-haiku-4.5"),
   ),
 });
 

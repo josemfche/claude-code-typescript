@@ -1,9 +1,7 @@
 import OpenAI from "openai";
 import { Effect } from "effect";
-import type { AssistantMessage } from "./domain.ts";
 import type { AppConfig } from "./config.ts";
-import { CompletionFailed, EmptyCompletion, type ProgramError } from "./errors.ts";
-import { decodeFunctionToolCall } from "./schemas.ts";
+import { CompletionFailed, EmptyCompletion } from "./errors.ts";
 import { toolDefinitions } from "./tool-definitions.ts";
 
 const createClient = (config: AppConfig) =>
@@ -12,30 +10,22 @@ const createClient = (config: AppConfig) =>
     baseURL: config.baseURL,
   });
 
-const toDomainMessage = (
-  message: OpenAI.Chat.Completions.ChatCompletionMessage,
-): Effect.Effect<AssistantMessage, ProgramError> =>
-  Effect.gen(function* () {
-    const firstToolCall = message.tool_calls?.[0];
-    if (firstToolCall) {
-      const toolCall = yield* decodeFunctionToolCall(firstToolCall);
-      return { _tag: "ToolCall", raw: toolCall };
-    }
+export type CompletionChoice = {
+  readonly message: OpenAI.Chat.Completions.ChatCompletionMessage;
+  readonly finishReason: OpenAI.Chat.Completions.ChatCompletion.Choice["finish_reason"];
+};
 
-    return {
-      _tag: "Text",
-      content: message.content ?? "",
-    };
-  });
-
-export const requestCompletion = (config: AppConfig, prompt: string) =>
+export const requestCompletion = (
+  config: AppConfig,
+  messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+) =>
   Effect.gen(function* () {
     const client = createClient(config);
     const response = yield* Effect.tryPromise({
       try: () =>
         client.chat.completions.create({
           model: config.model,
-          messages: [{ role: "user", content: prompt }],
+          messages,
           tools: [...toolDefinitions],
         }),
       catch: (cause) => new CompletionFailed({ cause }),
@@ -46,5 +36,8 @@ export const requestCompletion = (config: AppConfig, prompt: string) =>
       return yield* Effect.fail(new EmptyCompletion());
     }
 
-    return yield* toDomainMessage(choice.message);
+    return {
+      message: choice.message,
+      finishReason: choice.finish_reason,
+    } satisfies CompletionChoice;
   });
