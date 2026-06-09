@@ -1,38 +1,66 @@
+# codecrafters-claude-code-typescript
+
+My TypeScript solution for the [Build Your Own Claude Code](https://codecrafters.io/challenges/claude-code) challenge on CodeCrafters.
+
+A small CLI assistant that talks to an OpenAI-compatible API, runs an agent loop, and executes tools on behalf of the model. Built with **Bun**, **Effect**, and **Effect Schema**.
+
 [![progress-banner](https://backend.codecrafters.io/progress/claude-code/5f18ff56-c341-4959-a80d-8cadbd0ba473)](https://app.codecrafters.io/users/josemfche?r=2qF)
 
-This is a starting point for TypeScript solutions to the
-["Build Your own Claude Code" Challenge](https://codecrafters.io/challenges/claude-code).
+## What it does
 
-Claude Code is an AI coding assistant that uses Large Language Models (LLMs) to
-understand code and perform actions through tool calls. In this challenge,
-you'll build your own Claude Code from scratch by implementing an LLM-powered
-coding assistant.
+- Sends a prompt to the model with tool definitions
+- Runs an agent loop until the model returns a final answer (`finish_reason: stop`)
+- Executes tool calls (currently `Read`) and feeds results back into the conversation
+- Prints only the final answer to stdout; debug output goes to stderr
 
-Along the way you'll learn about HTTP RESTful APIs, OpenAI-compatible tool
-calling, agent loop, and how to integrate multiple tools into an AI assistant.
+## Project layout
 
-**Note**: If you're viewing this repo on GitHub, head over to
-[codecrafters.io](https://codecrafters.io) to try the challenge.
+```
+app/
+  main.ts              Entry point
+  program.ts           CLI orchestration
+  agent.ts             Agent loop
+  llm.ts               API client
+  tools.ts               Tool registry and execution
+  schemas.ts           Request/response validation
+  config.ts            Environment config
+  errors.ts            Tagged errors
+  tool-definitions.ts  Tool specs sent to the model
+```
 
-# Project
+## Requirements
 
-Chemical expiry period: 6 months
+- [Bun](https://bun.sh) 1.3+
+- `OPENROUTER_API_KEY` in your environment (or `.env`)
 
-# Passing the first stage
+Optional:
 
-The entry point for your `claude-code` implementation is in `app/main.ts`. Study
-and uncomment the relevant code, and submit to pass the first stage:
+- `OPENROUTER_BASE_URL` (defaults to `https://openrouter.ai/api/v1`)
+- `OPENROUTER_MODEL` (defaults to `tencent/hy3-preview`)
+
+## Run locally
+
+```sh
+bun install
+./your_program.sh -p "What is 10+4? Respond with only a number."
+```
+
+Agent loop example:
+
+```sh
+./your_program.sh -p "Use README.md to determine the chemical expiry period in months. Number only."
+```
+
+Submit to CodeCrafters:
 
 ```sh
 codecrafters submit
 ```
 
-# Stage 2 & beyond
+## Chemical safety reference
 
-Note: This section is for stages 2 and beyond.
+Chemical expiry period: 6 months
 
-1. Ensure you have `bun (1.3)` installed locally.
-2. Run `./your_program.sh` to run your program, which is implemented in
-   `app/main.ts`.
-3. Run `codecrafters submit` to submit your solution to CodeCrafters. Test
-   output will be streamed to your terminal.
+## Author
+
+[Jose Martinez](https://github.com/josemfche) — learning by building, one stage at a time.
