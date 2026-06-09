@@ -1,20 +1,47 @@
 import { readFile } from "node:fs/promises";
+import { Effect } from "effect";
+import type { AssistantMessage } from "./domain.ts";
+import { FileReadFailed, type ProgramError } from "./errors.ts";
 import {
-  parseReadToolArgs,
-  ToolNameSchema,
+  decodeReadToolArgs,
+  decodeToolName,
   type FunctionToolCall,
+  type ToolName,
 } from "./schemas.ts";
 
-async function executeReadTool(argumentsJson: string): Promise<string> {
-  const args = parseReadToolArgs(argumentsJson);
-  return readFile(args.file_path, "utf-8");
-}
+type ToolExecutor = (
+  toolCall: FunctionToolCall,
+) => Effect.Effect<string, ProgramError>;
 
-export async function executeToolCall(toolCall: FunctionToolCall): Promise<string> {
-  const toolName = ToolNameSchema.parse(toolCall.function.name);
+const executeReadTool = (toolCall: FunctionToolCall) =>
+  Effect.gen(function* () {
+    const args = yield* decodeReadToolArgs(toolCall.function.arguments);
+    return yield* Effect.tryPromise({
+      try: () => readFile(args.file_path, "utf-8"),
+      catch: (cause) =>
+        new FileReadFailed({ path: args.file_path, cause }),
+    });
+  });
 
-  switch (toolName) {
-    case "Read":
-      return executeReadTool(toolCall.function.arguments);
-  }
-}
+const toolExecutors: Record<ToolName, ToolExecutor> = {
+  Read: executeReadTool,
+};
+
+const dispatchToolCall = (toolCall: FunctionToolCall, name: ToolName) =>
+  toolExecutors[name](toolCall);
+
+export const executeToolCall = (toolCall: FunctionToolCall) =>
+  Effect.gen(function* () {
+    const name = yield* decodeToolName(toolCall.function.name);
+    return yield* dispatchToolCall(toolCall, name);
+  });
+
+export const handleAssistantMessage = (message: AssistantMessage) =>
+  Effect.gen(function* () {
+    switch (message._tag) {
+      case "Text":
+        return message.content;
+      case "ToolCall":
+        return yield* executeToolCall(message.raw);
+    }
+  });
