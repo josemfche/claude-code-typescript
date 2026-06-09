@@ -19,7 +19,8 @@ async function main() {
   });
 
   const response = await client.chat.completions.create({
-    model: "tencent/hy3-preview", // cheapest mainstream model
+    // model: "tencent/hy3-preview", // cheapest mainstream model
+    model: "anthropic/claude-haiku-4.5", // cheapest mainstream model
     messages: [{ role: "user", content: prompt }],
     "tools": [{
       "type": "function",
