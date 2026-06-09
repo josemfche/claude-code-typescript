@@ -1,10 +1,13 @@
 import OpenAI from "openai";
 import { Effect } from "effect";
+import type { Conversation } from "./conversation.ts";
 import type { AppConfig } from "./config.ts";
 import { CompletionFailed, EmptyCompletion } from "./errors.ts";
 import { toolDefinitions } from "./tool-definitions.ts";
 
-const createClient = (config: AppConfig) =>
+export type LlmClient = OpenAI;
+
+export const createLlmClient = (config: AppConfig): LlmClient =>
   new OpenAI({
     apiKey: config.apiKey,
     baseURL: config.baseURL,
@@ -16,11 +19,11 @@ export type CompletionChoice = {
 };
 
 export const requestCompletion = (
+  client: LlmClient,
   config: AppConfig,
-  messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+  messages: Conversation,
 ) =>
   Effect.gen(function* () {
-    const client = createClient(config);
     const response = yield* Effect.tryPromise({
       try: () =>
         client.chat.completions.create({

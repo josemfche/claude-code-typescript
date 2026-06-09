@@ -1,16 +1,19 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { Effect } from "effect";
+import type { ToolName } from "./domain.ts";
+import { runShellCommand } from "./bash.ts";
 import {
+  BashExecutionFailed,
   FileReadFailed,
   FileWriteFailed,
   type ProgramError,
 } from "./errors.ts";
 import {
+  decodeBashToolArgs,
   decodeReadToolArgs,
   decodeToolName,
   decodeWriteToolArgs,
   type FunctionToolCall,
-  type ToolName,
 } from "./schemas.ts";
 
 type ToolExecutor = (
@@ -38,16 +41,25 @@ const executeWriteTool = (toolCall: FunctionToolCall) =>
     return `Successfully wrote to ${args.file_path}`;
   });
 
+const executeBashTool = (toolCall: FunctionToolCall) =>
+  Effect.gen(function* () {
+    const args = yield* decodeBashToolArgs(toolCall.function.arguments);
+    return yield* runShellCommand(args.command).pipe(
+      Effect.mapError(
+        (cause) =>
+          new BashExecutionFailed({ command: args.command, cause }),
+      ),
+    );
+  });
+
 const toolExecutors: Record<ToolName, ToolExecutor> = {
   Read: executeReadTool,
   Write: executeWriteTool,
+  Bash: executeBashTool,
 };
-
-const dispatchToolCall = (toolCall: FunctionToolCall, name: ToolName) =>
-  toolExecutors[name](toolCall);
 
 export const executeToolCall = (toolCall: FunctionToolCall) =>
   Effect.gen(function* () {
     const name = yield* decodeToolName(toolCall.function.name);
-    return yield* dispatchToolCall(toolCall, name);
+    return yield* toolExecutors[name](toolCall);
   });

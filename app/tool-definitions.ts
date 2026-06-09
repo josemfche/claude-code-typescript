@@ -40,7 +40,26 @@ export const writeToolDefinition = {
   },
 } as const satisfies ChatCompletionTool;
 
+export const bashToolDefinition = {
+  type: "function",
+  function: {
+    name: "Bash",
+    description: "Execute a shell command",
+    parameters: {
+      type: "object",
+      required: ["command"],
+      properties: {
+        command: {
+          type: "string",
+          description: "The command to execute",
+        },
+      },
+    },
+  },
+} as const satisfies ChatCompletionTool;
+
 export const toolDefinitions = [
   readToolDefinition,
   writeToolDefinition,
+  bashToolDefinition,
 ] as const satisfies readonly ChatCompletionTool[];

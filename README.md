@@ -10,7 +10,7 @@ A small CLI assistant that talks to an OpenAI-compatible API, runs an agent loop
 
 - Sends a prompt to the model with tool definitions
 - Runs an agent loop until the model returns a final answer (`finish_reason: stop`)
-- Executes tool calls (`Read`, `Write`) and feeds results back into the conversation
+- Executes tool calls (`Read`, `Write`, `Bash`) and feeds results back into the conversation
 - Prints only the final answer to stdout; debug output goes to stderr
 
 ## Project layout
@@ -56,6 +56,16 @@ Submit to CodeCrafters:
 ```sh
 codecrafters submit
 ```
+
+## Bash cleanup task
+
+Delete the old readme file:
+
+```sh
+./your_program.sh -p "Delete the old readme file."
+```
+
+Expected stdout: `Deleted README_old.md`
 
 ## File setup task
 

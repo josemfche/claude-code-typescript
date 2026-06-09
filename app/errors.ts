@@ -26,6 +26,11 @@ export class FileWriteFailed extends Data.TaggedError("FileWriteFailed")<{
   readonly cause: unknown;
 }> {}
 
+export class BashExecutionFailed extends Data.TaggedError("BashExecutionFailed")<{
+  readonly command: string;
+  readonly cause: unknown;
+}> {}
+
 export type ProgramError =
   | MissingApiKey
   | InvalidCliArgs
@@ -33,7 +38,25 @@ export type ProgramError =
   | EmptyCompletion
   | InvalidToolCall
   | FileReadFailed
-  | FileWriteFailed;
+  | FileWriteFailed
+  | BashExecutionFailed;
+
+const programErrorTags = new Set<ProgramError["_tag"]>([
+  "MissingApiKey",
+  "InvalidCliArgs",
+  "CompletionFailed",
+  "EmptyCompletion",
+  "InvalidToolCall",
+  "FileReadFailed",
+  "FileWriteFailed",
+  "BashExecutionFailed",
+]);
+
+export const isProgramError = (error: unknown): error is ProgramError =>
+  typeof error === "object" &&
+  error !== null &&
+  "_tag" in error &&
+  programErrorTags.has(error._tag as ProgramError["_tag"]);
 
 export const formatProgramError = (error: ProgramError): string => {
   switch (error._tag) {
@@ -51,5 +74,7 @@ export const formatProgramError = (error: ProgramError): string => {
       return `failed to read file "${error.path}": ${String(error.cause)}`;
     case "FileWriteFailed":
       return `failed to write file "${error.path}": ${String(error.cause)}`;
+    case "BashExecutionFailed":
+      return `failed to execute command "${error.command}": ${String(error.cause)}`;
   }
 };

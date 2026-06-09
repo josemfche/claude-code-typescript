@@ -1,5 +1,6 @@
 import { Effect, ParseResult, Schema } from "effect";
 import type { FunctionToolCall as FunctionToolCallType } from "./domain.ts";
+import { toolNames } from "./domain.ts";
 import { InvalidCliArgs, InvalidToolCall } from "./errors.ts";
 
 export const CliArgs = Schema.Struct({
@@ -22,9 +23,17 @@ export const WriteToolArgs = Schema.Struct({
 
 export type WriteToolArgs = typeof WriteToolArgs.Type;
 
-export const ToolName = Schema.Literal("Read", "Write");
+export const BashToolArgs = Schema.Struct({
+  command: Schema.String.pipe(Schema.minLength(1)),
+});
 
-export type ToolName = typeof ToolName.Type;
+export type BashToolArgs = typeof BashToolArgs.Type;
+
+export const ToolNameSchema = Schema.Literal(
+  toolNames[0],
+  toolNames[1],
+  toolNames[2],
+);
 
 export const FunctionToolCallSchema = Schema.Struct({
   id: Schema.String,
@@ -39,6 +48,15 @@ export type FunctionToolCall = FunctionToolCallType;
 
 const formatParseError = (error: ParseResult.ParseError): string =>
   ParseResult.TreeFormatter.formatErrorSync(error);
+
+const decodeToolArgs =
+  <A, I, R>(schema: Schema.Schema<A, I, R>) =>
+  (argumentsJson: string) =>
+    Schema.decodeUnknown(Schema.parseJson(schema))(argumentsJson).pipe(
+      Effect.mapError(
+        (error) => new InvalidToolCall({ reason: formatParseError(error) }),
+      ),
+    );
 
 export const decodeCliArgs = (
   flag: string | undefined,
@@ -64,22 +82,12 @@ export const decodeFunctionToolCall = (raw: unknown) =>
   );
 
 export const decodeToolName = (name: string) =>
-  Schema.decodeUnknown(ToolName)(name).pipe(
+  Schema.decodeUnknown(ToolNameSchema)(name).pipe(
     Effect.mapError(
       (error) => new InvalidToolCall({ reason: formatParseError(error) }),
     ),
   );
 
-export const decodeReadToolArgs = (argumentsJson: string) =>
-  Schema.decodeUnknown(Schema.parseJson(ReadToolArgs))(argumentsJson).pipe(
-    Effect.mapError(
-      (error) => new InvalidToolCall({ reason: formatParseError(error) }),
-    ),
-  );
-
-export const decodeWriteToolArgs = (argumentsJson: string) =>
-  Schema.decodeUnknown(Schema.parseJson(WriteToolArgs))(argumentsJson).pipe(
-    Effect.mapError(
-      (error) => new InvalidToolCall({ reason: formatParseError(error) }),
-    ),
-  );
+export const decodeReadToolArgs = decodeToolArgs(ReadToolArgs);
+export const decodeWriteToolArgs = decodeToolArgs(WriteToolArgs);
+export const decodeBashToolArgs = decodeToolArgs(BashToolArgs);

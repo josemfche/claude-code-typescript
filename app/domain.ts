@@ -6,3 +6,7 @@ export type FunctionToolCall = {
     readonly arguments: string;
   };
 };
+
+export const toolNames = ["Read", "Write", "Bash"] as const;
+
+export type ToolName = (typeof toolNames)[number];

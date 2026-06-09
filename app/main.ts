@@ -1,14 +1,8 @@
 import { Cause, Effect, Exit, Option } from "effect";
-import { formatProgramError, type ProgramError } from "./errors.ts";
+import { formatProgramError, isProgramError } from "./errors.ts";
 import { program } from "./program.ts";
 
 const [, , flag, prompt] = process.argv;
-
-const isProgramError = (error: unknown): error is ProgramError =>
-  typeof error === "object" &&
-  error !== null &&
-  "_tag" in error &&
-  typeof error._tag === "string";
 
 const exit = await Effect.runPromiseExit(program(flag, prompt));
 
