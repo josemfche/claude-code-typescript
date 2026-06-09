@@ -1,9 +1,14 @@
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { Effect } from "effect";
-import { FileReadFailed, type ProgramError } from "./errors.ts";
+import {
+  FileReadFailed,
+  FileWriteFailed,
+  type ProgramError,
+} from "./errors.ts";
 import {
   decodeReadToolArgs,
   decodeToolName,
+  decodeWriteToolArgs,
   type FunctionToolCall,
   type ToolName,
 } from "./schemas.ts";
@@ -22,8 +27,20 @@ const executeReadTool = (toolCall: FunctionToolCall) =>
     });
   });
 
+const executeWriteTool = (toolCall: FunctionToolCall) =>
+  Effect.gen(function* () {
+    const args = yield* decodeWriteToolArgs(toolCall.function.arguments);
+    yield* Effect.tryPromise({
+      try: () => writeFile(args.file_path, args.content, "utf-8"),
+      catch: (cause) =>
+        new FileWriteFailed({ path: args.file_path, cause }),
+    });
+    return `Successfully wrote to ${args.file_path}`;
+  });
+
 const toolExecutors: Record<ToolName, ToolExecutor> = {
   Read: executeReadTool,
+  Write: executeWriteTool,
 };
 
 const dispatchToolCall = (toolCall: FunctionToolCall, name: ToolName) =>

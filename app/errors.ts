@@ -21,13 +21,19 @@ export class FileReadFailed extends Data.TaggedError("FileReadFailed")<{
   readonly cause: unknown;
 }> {}
 
+export class FileWriteFailed extends Data.TaggedError("FileWriteFailed")<{
+  readonly path: string;
+  readonly cause: unknown;
+}> {}
+
 export type ProgramError =
   | MissingApiKey
   | InvalidCliArgs
   | CompletionFailed
   | EmptyCompletion
   | InvalidToolCall
-  | FileReadFailed;
+  | FileReadFailed
+  | FileWriteFailed;
 
 export const formatProgramError = (error: ProgramError): string => {
   switch (error._tag) {
@@ -43,5 +49,7 @@ export const formatProgramError = (error: ProgramError): string => {
       return `invalid tool call: ${error.reason}`;
     case "FileReadFailed":
       return `failed to read file "${error.path}": ${String(error.cause)}`;
+    case "FileWriteFailed":
+      return `failed to write file "${error.path}": ${String(error.cause)}`;
   }
 };

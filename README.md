@@ -10,7 +10,7 @@ A small CLI assistant that talks to an OpenAI-compatible API, runs an agent loop
 
 - Sends a prompt to the model with tool definitions
 - Runs an agent loop until the model returns a final answer (`finish_reason: stop`)
-- Executes tool calls (currently `Read`) and feeds results back into the conversation
+- Executes tool calls (`Read`, `Write`) and feeds results back into the conversation
 - Prints only the final answer to stdout; debug output goes to stderr
 
 ## Project layout
@@ -56,6 +56,16 @@ Submit to CodeCrafters:
 ```sh
 codecrafters submit
 ```
+
+## File setup task
+
+Read this README, then create `app/greeting.txt` with exactly one line:
+
+```
+Hello from the Write tool
+```
+
+Reply with `Created the file` when done.
 
 ## Chemical safety reference
 

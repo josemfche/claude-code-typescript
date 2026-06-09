@@ -18,4 +18,29 @@ export const readToolDefinition = {
   },
 } as const satisfies ChatCompletionTool;
 
-export const toolDefinitions = [readToolDefinition] as const satisfies readonly ChatCompletionTool[];
+export const writeToolDefinition = {
+  type: "function",
+  function: {
+    name: "Write",
+    description: "Write content to a file",
+    parameters: {
+      type: "object",
+      required: ["file_path", "content"],
+      properties: {
+        file_path: {
+          type: "string",
+          description: "The path of the file to write to",
+        },
+        content: {
+          type: "string",
+          description: "The content to write to the file",
+        },
+      },
+    },
+  },
+} as const satisfies ChatCompletionTool;
+
+export const toolDefinitions = [
+  readToolDefinition,
+  writeToolDefinition,
+] as const satisfies readonly ChatCompletionTool[];

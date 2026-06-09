@@ -15,7 +15,14 @@ export const ReadToolArgs = Schema.Struct({
 
 export type ReadToolArgs = typeof ReadToolArgs.Type;
 
-export const ToolName = Schema.Literal("Read");
+export const WriteToolArgs = Schema.Struct({
+  file_path: Schema.String.pipe(Schema.minLength(1)),
+  content: Schema.String,
+});
+
+export type WriteToolArgs = typeof WriteToolArgs.Type;
+
+export const ToolName = Schema.Literal("Read", "Write");
 
 export type ToolName = typeof ToolName.Type;
 
@@ -65,6 +72,13 @@ export const decodeToolName = (name: string) =>
 
 export const decodeReadToolArgs = (argumentsJson: string) =>
   Schema.decodeUnknown(Schema.parseJson(ReadToolArgs))(argumentsJson).pipe(
+    Effect.mapError(
+      (error) => new InvalidToolCall({ reason: formatParseError(error) }),
+    ),
+  );
+
+export const decodeWriteToolArgs = (argumentsJson: string) =>
+  Schema.decodeUnknown(Schema.parseJson(WriteToolArgs))(argumentsJson).pipe(
     Effect.mapError(
       (error) => new InvalidToolCall({ reason: formatParseError(error) }),
     ),
