@@ -33,7 +33,7 @@ export type ProgramError =
   | InvalidToolCall
   | MaxTurnsExceeded;
 
-const programErrorTags = new Set<ProgramError["_tag"]>([
+const programErrorTags = new Set([
   "MissingApiKey",
   "ConfigFailed",
   "InvalidCliArgs",
@@ -47,7 +47,8 @@ export const isProgramError = (error: unknown): error is ProgramError =>
   typeof error === "object" &&
   error !== null &&
   "_tag" in error &&
-  programErrorTags.has(error._tag as ProgramError["_tag"]);
+  typeof error._tag === "string" &&
+  programErrorTags.has(error._tag);
 
 export const formatProgramError = (error: ProgramError): string => {
   switch (error._tag) {

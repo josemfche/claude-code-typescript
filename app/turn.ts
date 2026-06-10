@@ -7,6 +7,11 @@ import { ToolRegistry } from "./tools/registry.ts";
 
 const TOOL_CONCURRENCY = 10;
 
+type ToolSettlement = {
+  readonly toolCallId: string;
+  readonly result: string;
+};
+
 const settleToolCalls = (
   conversation: Conversation,
   toolCalls: readonly FunctionToolCall[],
@@ -20,7 +25,7 @@ const settleToolCalls = (
         Effect.gen(function* () {
           yield* Console.error(`Executing tool: ${toolCall.function.name}`);
           const result = yield* tools.execute(toolCall);
-          return { toolCallId: toolCall.id, result } as const;
+          return { toolCallId: toolCall.id, result } satisfies ToolSettlement;
         }),
       { concurrency: TOOL_CONCURRENCY },
     );
@@ -49,8 +54,10 @@ export const runTurn = (
       turn.assistant.toolCalls,
     );
 
-    return {
+    const continueOutcome: TurnOutcome = {
       _tag: "Continue",
       conversation: conversationWithResults,
-    } as const;
+    };
+
+    return continueOutcome;
   });

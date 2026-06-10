@@ -9,16 +9,16 @@ export class ToolFailure extends Data.TaggedError("ToolFailure")<{
 const formatParseError = (error: ParseResult.ParseError): string =>
   ParseResult.TreeFormatter.formatErrorSync(error);
 
+const jsonSchemaMetaKeys = new Set(["$schema", "$defs"]);
+
 const toOpenAiParameters = <A, I, R>(
   schema: Schema.Schema<A, I, R>,
-): Record<string, unknown> => {
-  const jsonSchema = JSONSchema.make(schema) as unknown as Record<
-    string,
-    unknown
-  >;
-  const { $schema: _schema, ...parameters } = jsonSchema;
-  return parameters;
-};
+): Record<string, unknown> =>
+  Object.fromEntries(
+    Object.entries(JSONSchema.make(schema)).filter(
+      ([key]) => !jsonSchemaMetaKeys.has(key),
+    ),
+  );
 
 export type ToolConfig<
   Input extends Schema.Schema.AnyNoContext,

@@ -1,8 +1,7 @@
 import { Effect, ParseResult, Schema } from "effect";
 import type { FunctionToolCall as FunctionToolCallType } from "./domain.ts";
-import type { ToolName } from "./domain.ts";
 import { InvalidCliArgs, InvalidToolCall } from "./errors.ts";
-import { toolNames } from "./tools/builtins.ts";
+import { isToolName } from "./tools/builtins.ts";
 
 export const CliArgs = Schema.Struct({
   flag: Schema.Literal("-p"),
@@ -10,10 +9,6 @@ export const CliArgs = Schema.Struct({
 });
 
 export type CliArgs = typeof CliArgs.Type;
-
-export const ToolNameSchema = Schema.Literal(
-  ...(toolNames as [ToolName, ...ToolName[]]),
-);
 
 export const FunctionToolCallSchema = Schema.Struct({
   id: Schema.String,
@@ -53,8 +48,8 @@ export const decodeFunctionToolCall = (raw: unknown) =>
   );
 
 export const decodeToolName = (name: string) =>
-  Schema.decodeUnknown(ToolNameSchema)(name).pipe(
-    Effect.mapError(
-      (error) => new InvalidToolCall({ reason: formatParseError(error) }),
-    ),
-  );
+  isToolName(name)
+    ? Effect.succeed(name)
+    : Effect.fail(
+        new InvalidToolCall({ reason: `unknown tool: ${name}` }),
+      );

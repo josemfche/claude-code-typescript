@@ -10,10 +10,6 @@ export const builtinTools = [
   BashTool,
 ] as const satisfies readonly RegisteredTool[];
 
-export const toolNames: readonly ToolName[] = builtinTools.map(
-  (tool) => tool.name,
-);
-
 export const toolDefinitions = toolDefinitionsFrom(builtinTools);
 
 const toolsByName = {
@@ -21,6 +17,8 @@ const toolsByName = {
   Write: WriteTool,
   Bash: BashTool,
 } as const satisfies Record<ToolName, RegisteredTool>;
+
+export const isToolName = (name: string): name is ToolName => name in toolsByName;
 
 export const getBuiltinTool = (name: ToolName): RegisteredTool =>
   toolsByName[name];
