@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import { Context, Effect, Layer } from "effect";
+import { Effect, Layer } from "effect";
 import { AppConfigService } from "../config.ts";
 import type {
   AssistantMessage,
@@ -15,8 +15,18 @@ import {
   isUserMessage,
 } from "../conversation.ts";
 import { decodeFunctionToolCall } from "../schemas.ts";
-import { toolDefinitions } from "../tool-definitions.ts";
+import { toolDefinitions } from "../tools/builtins.ts";
+import type { ToolDefinition } from "../tools/definition.ts";
 import { LlmService, type LlmServiceApi } from "./service.ts";
+
+const toOpenAiTool = (tool: ToolDefinition): OpenAI.Chat.ChatCompletionTool => ({
+  type: "function",
+  function: {
+    name: tool.function.name,
+    description: tool.function.description,
+    parameters: tool.function.parameters,
+  },
+});
 
 const toProviderToolCall = (
   toolCall: FunctionToolCall,
@@ -52,7 +62,8 @@ const toProviderMessage = (
     };
   }
 
-  return { role: "user", content: "" };
+  const unexpected: never = message;
+  return unexpected;
 };
 
 const toProviderMessages = (
@@ -89,7 +100,7 @@ const makeComplete =
           client.chat.completions.create({
             model,
             messages: toProviderMessages(conversation),
-            tools: [...toolDefinitions],
+            tools: toolDefinitions.map(toOpenAiTool),
           }),
         catch: (cause) => new CompletionFailed({ cause }),
       });

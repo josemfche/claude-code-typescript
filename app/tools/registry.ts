@@ -1,25 +1,10 @@
-import { readFile, writeFile } from "node:fs/promises";
 import { Context, Effect, Layer } from "effect";
-import type { ToolName } from "../domain.ts";
 import type { FunctionToolCall } from "../domain.ts";
-import { runShellCommand } from "../bash.ts";
-import {
-  BashExecutionFailed,
-  FileReadFailed,
-  FileWriteFailed,
-  type ProgramError,
-} from "../errors.ts";
-import {
-  decodeBashToolArgs,
-  decodeReadToolArgs,
-  decodeToolName,
-  decodeWriteToolArgs,
-} from "../schemas.ts";
+import { decodeToolName } from "../schemas.ts";
+import { getBuiltinTool } from "./builtins.ts";
 
 export type ToolRegistryApi = {
-  readonly execute: (
-    toolCall: FunctionToolCall,
-  ) => Effect.Effect<string, ProgramError>;
+  readonly execute: (toolCall: FunctionToolCall) => Effect.Effect<string>;
 };
 
 export class ToolRegistry extends Context.Tag("ToolRegistry")<
@@ -27,55 +12,17 @@ export class ToolRegistry extends Context.Tag("ToolRegistry")<
   ToolRegistryApi
 >() {}
 
-type ToolExecutor = (
-  toolCall: FunctionToolCall,
-) => Effect.Effect<string, ProgramError>;
-
-const executeReadTool: ToolExecutor = (toolCall) =>
+const executeToolCall = (toolCall: FunctionToolCall): Effect.Effect<string> =>
   Effect.gen(function* () {
-    const args = yield* decodeReadToolArgs(toolCall.function.arguments);
-    return yield* Effect.tryPromise({
-      try: () => readFile(args.file_path, "utf-8"),
-      catch: (cause) =>
-        new FileReadFailed({ path: args.file_path, cause }),
-    });
-  });
-
-const executeWriteTool: ToolExecutor = (toolCall) =>
-  Effect.gen(function* () {
-    const args = yield* decodeWriteToolArgs(toolCall.function.arguments);
-    yield* Effect.tryPromise({
-      try: () => writeFile(args.file_path, args.content, "utf-8"),
-      catch: (cause) =>
-        new FileWriteFailed({ path: args.file_path, cause }),
-    });
-    return `Successfully wrote to ${args.file_path}`;
-  });
-
-const executeBashTool: ToolExecutor = (toolCall) =>
-  Effect.gen(function* () {
-    const args = yield* decodeBashToolArgs(toolCall.function.arguments);
-    return yield* runShellCommand(args.command).pipe(
-      Effect.mapError(
-        (cause) =>
-          new BashExecutionFailed({ command: args.command, cause }),
-      ),
+    const nameResult = yield* Effect.either(
+      decodeToolName(toolCall.function.name),
     );
-  });
 
-const toolExecutors: Record<ToolName, ToolExecutor> = {
-  Read: executeReadTool,
-  Write: executeWriteTool,
-  Bash: executeBashTool,
-};
+    if (nameResult._tag === "Left") {
+      return `error: ${nameResult.left.reason}`;
+    }
 
-const dispatchToolCall = (toolCall: FunctionToolCall, name: ToolName) =>
-  toolExecutors[name](toolCall);
-
-const executeToolCall = (toolCall: FunctionToolCall) =>
-  Effect.gen(function* () {
-    const name = yield* decodeToolName(toolCall.function.name);
-    return yield* dispatchToolCall(toolCall, name);
+    return yield* getBuiltinTool(nameResult.right).run(toolCall);
   });
 
 export const ToolRegistryLive = Layer.succeed(ToolRegistry, {

@@ -1,7 +1,8 @@
 import { Effect, ParseResult, Schema } from "effect";
 import type { FunctionToolCall as FunctionToolCallType } from "./domain.ts";
-import { toolNames } from "./domain.ts";
+import type { ToolName } from "./domain.ts";
 import { InvalidCliArgs, InvalidToolCall } from "./errors.ts";
+import { toolNames } from "./tools/builtins.ts";
 
 export const CliArgs = Schema.Struct({
   flag: Schema.Literal("-p"),
@@ -10,29 +11,8 @@ export const CliArgs = Schema.Struct({
 
 export type CliArgs = typeof CliArgs.Type;
 
-export const ReadToolArgs = Schema.Struct({
-  file_path: Schema.String.pipe(Schema.minLength(1)),
-});
-
-export type ReadToolArgs = typeof ReadToolArgs.Type;
-
-export const WriteToolArgs = Schema.Struct({
-  file_path: Schema.String.pipe(Schema.minLength(1)),
-  content: Schema.String,
-});
-
-export type WriteToolArgs = typeof WriteToolArgs.Type;
-
-export const BashToolArgs = Schema.Struct({
-  command: Schema.String.pipe(Schema.minLength(1)),
-});
-
-export type BashToolArgs = typeof BashToolArgs.Type;
-
 export const ToolNameSchema = Schema.Literal(
-  toolNames[0],
-  toolNames[1],
-  toolNames[2],
+  ...(toolNames as [ToolName, ...ToolName[]]),
 );
 
 export const FunctionToolCallSchema = Schema.Struct({
@@ -48,15 +28,6 @@ export type FunctionToolCall = FunctionToolCallType;
 
 const formatParseError = (error: ParseResult.ParseError): string =>
   ParseResult.TreeFormatter.formatErrorSync(error);
-
-const decodeToolArgs =
-  <A, I, R>(schema: Schema.Schema<A, I, R>) =>
-  (argumentsJson: string) =>
-    Schema.decodeUnknown(Schema.parseJson(schema))(argumentsJson).pipe(
-      Effect.mapError(
-        (error) => new InvalidToolCall({ reason: formatParseError(error) }),
-      ),
-    );
 
 export const decodeCliArgs = (
   flag: string | undefined,
@@ -87,7 +58,3 @@ export const decodeToolName = (name: string) =>
       (error) => new InvalidToolCall({ reason: formatParseError(error) }),
     ),
   );
-
-export const decodeReadToolArgs = decodeToolArgs(ReadToolArgs);
-export const decodeWriteToolArgs = decodeToolArgs(WriteToolArgs);
-export const decodeBashToolArgs = decodeToolArgs(BashToolArgs);

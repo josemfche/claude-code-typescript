@@ -2,6 +2,10 @@ import { Data } from "effect";
 
 export class MissingApiKey extends Data.TaggedError("MissingApiKey") {}
 
+export class ConfigFailed extends Data.TaggedError("ConfigFailed")<{
+  readonly reason: string;
+}> {}
+
 export class InvalidCliArgs extends Data.TaggedError("InvalidCliArgs")<{
   readonly reason: string;
 }> {}
@@ -16,40 +20,27 @@ export class InvalidToolCall extends Data.TaggedError("InvalidToolCall")<{
   readonly reason: string;
 }> {}
 
-export class FileReadFailed extends Data.TaggedError("FileReadFailed")<{
-  readonly path: string;
-  readonly cause: unknown;
-}> {}
-
-export class FileWriteFailed extends Data.TaggedError("FileWriteFailed")<{
-  readonly path: string;
-  readonly cause: unknown;
-}> {}
-
-export class BashExecutionFailed extends Data.TaggedError("BashExecutionFailed")<{
-  readonly command: string;
-  readonly cause: unknown;
+export class MaxTurnsExceeded extends Data.TaggedError("MaxTurnsExceeded")<{
+  readonly limit: number;
 }> {}
 
 export type ProgramError =
   | MissingApiKey
+  | ConfigFailed
   | InvalidCliArgs
   | CompletionFailed
   | EmptyCompletion
   | InvalidToolCall
-  | FileReadFailed
-  | FileWriteFailed
-  | BashExecutionFailed;
+  | MaxTurnsExceeded;
 
 const programErrorTags = new Set<ProgramError["_tag"]>([
   "MissingApiKey",
+  "ConfigFailed",
   "InvalidCliArgs",
   "CompletionFailed",
   "EmptyCompletion",
   "InvalidToolCall",
-  "FileReadFailed",
-  "FileWriteFailed",
-  "BashExecutionFailed",
+  "MaxTurnsExceeded",
 ]);
 
 export const isProgramError = (error: unknown): error is ProgramError =>
@@ -62,6 +53,8 @@ export const formatProgramError = (error: ProgramError): string => {
   switch (error._tag) {
     case "MissingApiKey":
       return "OPENROUTER_API_KEY is not set";
+    case "ConfigFailed":
+      return `configuration error: ${error.reason}`;
     case "InvalidCliArgs":
       return error.reason;
     case "CompletionFailed":
@@ -70,11 +63,7 @@ export const formatProgramError = (error: ProgramError): string => {
       return "no choices in response";
     case "InvalidToolCall":
       return `invalid tool call: ${error.reason}`;
-    case "FileReadFailed":
-      return `failed to read file "${error.path}": ${String(error.cause)}`;
-    case "FileWriteFailed":
-      return `failed to write file "${error.path}": ${String(error.cause)}`;
-    case "BashExecutionFailed":
-      return `failed to execute command "${error.command}": ${String(error.cause)}`;
+    case "MaxTurnsExceeded":
+      return `agent exceeded maximum turns (${error.limit})`;
   }
 };

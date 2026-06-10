@@ -2,7 +2,6 @@ import type {
   AssistantMessage,
   ChatMessage,
   Conversation,
-  FinishReason,
   TurnOutcome,
   TurnResult,
 } from "./domain.ts";
@@ -25,10 +24,7 @@ export const appendToolResult = (
   { role: "tool", toolCallId, content },
 ];
 
-const shouldStopTurn = (
-  finishReason: FinishReason,
-  toolCallCount: number,
-): boolean => finishReason === "stop" || toolCallCount === 0;
+const shouldStopTurn = (toolCallCount: number): boolean => toolCallCount === 0;
 
 export const resolveTurn = (
   conversation: Conversation,
@@ -36,7 +32,7 @@ export const resolveTurn = (
 ): TurnOutcome => {
   const nextConversation = appendAssistantMessage(conversation, turn.assistant);
 
-  if (shouldStopTurn(turn.finishReason, turn.assistant.toolCalls.length)) {
+  if (shouldStopTurn(turn.assistant.toolCalls.length)) {
     return {
       _tag: "Done",
       content: turn.assistant.content ?? "",

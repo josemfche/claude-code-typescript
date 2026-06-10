@@ -7,9 +7,7 @@ export type FunctionToolCall = {
   };
 };
 
-export const toolNames = ["Read", "Write", "Bash"] as const;
-
-export type ToolName = (typeof toolNames)[number];
+export type ToolName = "Read" | "Write" | "Bash";
 
 export type UserMessage = {
   readonly role: "user";

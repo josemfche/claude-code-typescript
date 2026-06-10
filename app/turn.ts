@@ -5,25 +5,31 @@ import type { ProgramError } from "./errors.ts";
 import { LlmService } from "./llm/service.ts";
 import { ToolRegistry } from "./tools/registry.ts";
 
+const TOOL_CONCURRENCY = 10;
+
 const settleToolCalls = (
   conversation: Conversation,
   toolCalls: readonly FunctionToolCall[],
 ) =>
   Effect.gen(function* () {
     const tools = yield* ToolRegistry;
-    let nextConversation = conversation;
 
-    for (const toolCall of toolCalls) {
-      yield* Console.error(`Executing tool: ${toolCall.function.name}`);
-      const result = yield* tools.execute(toolCall);
-      nextConversation = appendToolResult(
-        nextConversation,
-        toolCall.id,
-        result,
-      );
-    }
+    const results = yield* Effect.forEach(
+      toolCalls,
+      (toolCall) =>
+        Effect.gen(function* () {
+          yield* Console.error(`Executing tool: ${toolCall.function.name}`);
+          const result = yield* tools.execute(toolCall);
+          return { toolCallId: toolCall.id, result } as const;
+        }),
+      { concurrency: TOOL_CONCURRENCY },
+    );
 
-    return nextConversation;
+    return results.reduce(
+      (nextConversation, { toolCallId, result }) =>
+        appendToolResult(nextConversation, toolCallId, result),
+      conversation,
+    );
   });
 
 export const runTurn = (
