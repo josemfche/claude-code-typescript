@@ -1,26 +1,37 @@
 import { readFile, writeFile } from "node:fs/promises";
-import { Effect } from "effect";
-import type { ToolName } from "./domain.ts";
-import { runShellCommand } from "./bash.ts";
+import { Context, Effect, Layer } from "effect";
+import type { ToolName } from "../domain.ts";
+import type { FunctionToolCall } from "../domain.ts";
+import { runShellCommand } from "../bash.ts";
 import {
   BashExecutionFailed,
   FileReadFailed,
   FileWriteFailed,
   type ProgramError,
-} from "./errors.ts";
+} from "../errors.ts";
 import {
   decodeBashToolArgs,
   decodeReadToolArgs,
   decodeToolName,
   decodeWriteToolArgs,
-  type FunctionToolCall,
-} from "./schemas.ts";
+} from "../schemas.ts";
+
+export type ToolRegistryApi = {
+  readonly execute: (
+    toolCall: FunctionToolCall,
+  ) => Effect.Effect<string, ProgramError>;
+};
+
+export class ToolRegistry extends Context.Tag("ToolRegistry")<
+  ToolRegistry,
+  ToolRegistryApi
+>() {}
 
 type ToolExecutor = (
   toolCall: FunctionToolCall,
 ) => Effect.Effect<string, ProgramError>;
 
-const executeReadTool = (toolCall: FunctionToolCall) =>
+const executeReadTool: ToolExecutor = (toolCall) =>
   Effect.gen(function* () {
     const args = yield* decodeReadToolArgs(toolCall.function.arguments);
     return yield* Effect.tryPromise({
@@ -30,7 +41,7 @@ const executeReadTool = (toolCall: FunctionToolCall) =>
     });
   });
 
-const executeWriteTool = (toolCall: FunctionToolCall) =>
+const executeWriteTool: ToolExecutor = (toolCall) =>
   Effect.gen(function* () {
     const args = yield* decodeWriteToolArgs(toolCall.function.arguments);
     yield* Effect.tryPromise({
@@ -41,7 +52,7 @@ const executeWriteTool = (toolCall: FunctionToolCall) =>
     return `Successfully wrote to ${args.file_path}`;
   });
 
-const executeBashTool = (toolCall: FunctionToolCall) =>
+const executeBashTool: ToolExecutor = (toolCall) =>
   Effect.gen(function* () {
     const args = yield* decodeBashToolArgs(toolCall.function.arguments);
     return yield* runShellCommand(args.command).pipe(
@@ -58,8 +69,15 @@ const toolExecutors: Record<ToolName, ToolExecutor> = {
   Bash: executeBashTool,
 };
 
-export const executeToolCall = (toolCall: FunctionToolCall) =>
+const dispatchToolCall = (toolCall: FunctionToolCall, name: ToolName) =>
+  toolExecutors[name](toolCall);
+
+const executeToolCall = (toolCall: FunctionToolCall) =>
   Effect.gen(function* () {
     const name = yield* decodeToolName(toolCall.function.name);
-    return yield* toolExecutors[name](toolCall);
+    return yield* dispatchToolCall(toolCall, name);
   });
+
+export const ToolRegistryLive = Layer.succeed(ToolRegistry, {
+  execute: executeToolCall,
+});

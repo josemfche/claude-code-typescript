@@ -1,7 +1,11 @@
-import type OpenAI from "openai";
-
-export type Conversation =
-  OpenAI.Chat.Completions.ChatCompletionMessageParam[];
+import type {
+  AssistantMessage,
+  ChatMessage,
+  Conversation,
+  FinishReason,
+  TurnOutcome,
+  TurnResult,
+} from "./domain.ts";
 
 export const startConversation = (prompt: string): Conversation => [
   { role: "user", content: prompt },
@@ -9,16 +13,8 @@ export const startConversation = (prompt: string): Conversation => [
 
 export const appendAssistantMessage = (
   conversation: Conversation,
-  message: OpenAI.Chat.Completions.ChatCompletionMessage,
-): Conversation => [
-  ...conversation,
-  {
-    role: "assistant",
-    content: message.content,
-    tool_calls: message.tool_calls,
-    refusal: message.refusal,
-  },
-];
+  assistant: AssistantMessage,
+): Conversation => [...conversation, assistant];
 
 export const appendToolResult = (
   conversation: Conversation,
@@ -26,9 +22,42 @@ export const appendToolResult = (
   content: string,
 ): Conversation => [
   ...conversation,
-  {
-    role: "tool",
-    tool_call_id: toolCallId,
-    content,
-  },
+  { role: "tool", toolCallId, content },
 ];
+
+const shouldStopTurn = (
+  finishReason: FinishReason,
+  toolCallCount: number,
+): boolean => finishReason === "stop" || toolCallCount === 0;
+
+export const resolveTurn = (
+  conversation: Conversation,
+  turn: TurnResult,
+): TurnOutcome => {
+  const nextConversation = appendAssistantMessage(conversation, turn.assistant);
+
+  if (shouldStopTurn(turn.finishReason, turn.assistant.toolCalls.length)) {
+    return {
+      _tag: "Done",
+      content: turn.assistant.content ?? "",
+    };
+  }
+
+  return {
+    _tag: "Continue",
+    conversation: nextConversation,
+  };
+};
+
+export const isUserMessage = (message: ChatMessage): message is Extract<ChatMessage, { role: "user" }> =>
+  message.role === "user";
+
+export const isAssistantMessage = (
+  message: ChatMessage,
+): message is Extract<ChatMessage, { role: "assistant" }> =>
+  message.role === "assistant";
+
+export const isToolResultMessage = (
+  message: ChatMessage,
+): message is Extract<ChatMessage, { role: "tool" }> =>
+  message.role === "tool";
