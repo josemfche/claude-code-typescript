@@ -1,11 +1,3 @@
-# codecrafters-claude-code-typescript
-
-My TypeScript solution for the [Build Your Own Claude Code](https://codecrafters.io/challenges/claude-code) challenge on CodeCrafters.
-
-A small CLI assistant that talks to an OpenAI-compatible API, runs an agent loop, and executes tools on behalf of the model. Built with **Bun**, **Effect**, and **Effect Schema**.
-
-[![progress-banner](https://backend.codecrafters.io/progress/claude-code/5f18ff56-c341-4959-a80d-8cadbd0ba473)](https://app.codecrafters.io/users/josemfche?r=2qF)
-
 ## What it does
 
 - Sends a prompt to the model with tool definitions
