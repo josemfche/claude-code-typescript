@@ -7,7 +7,7 @@ export type FunctionToolCall = {
   };
 };
 
-export type ToolName = "Read" | "Write" | "Bash";
+export type ToolName = "Read" | "Write" | "Bash" | "Grep";
 
 export type UserMessage = {
   readonly role: "user";
