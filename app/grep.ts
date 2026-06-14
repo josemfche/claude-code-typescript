@@ -1,9 +1,9 @@
-import { readdir, readFile, stat } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { Data, Effect } from "effect";
+import { collectFiles } from "./file-walk.ts";
 
 const DEFAULT_LIMIT = 50;
-const SKIP_DIRS = new Set(["node_modules", ".git", ".codecrafters"]);
 
 export class GrepSearchError extends Data.TaggedError("GrepSearchError")<{
   readonly message: string;
@@ -37,44 +37,6 @@ const compilePattern = (pattern: string) =>
         message: `invalid grep pattern: ${JSON.stringify(pattern)}`,
       }),
   });
-
-const isDirectory = async (target: string): Promise<boolean> => {
-  const info = await stat(target);
-  return info.isDirectory();
-};
-
-const shouldSkipDir = (name: string): boolean => SKIP_DIRS.has(name);
-
-const collectFiles = async (root: string): Promise<string[]> => {
-  const files: string[] = [];
-
-  const walk = async (directory: string): Promise<void> => {
-    const entries = await readdir(directory, { withFileTypes: true });
-
-    for (const entry of entries) {
-      if (entry.isDirectory()) {
-        if (shouldSkipDir(entry.name)) {
-          continue;
-        }
-
-        await walk(path.join(directory, entry.name));
-        continue;
-      }
-
-      if (entry.isFile()) {
-        files.push(path.join(directory, entry.name));
-      }
-    }
-  };
-
-  if (await isDirectory(root)) {
-    await walk(root);
-  } else {
-    files.push(root);
-  }
-
-  return files;
-};
 
 const searchFile = async (
   filePath: string,

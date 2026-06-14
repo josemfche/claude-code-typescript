@@ -1,5 +1,6 @@
 import type { ToolName } from "../domain.ts";
 import { BashTool } from "./bash-tool.ts";
+import { GlobTool } from "./glob.ts";
 import { GrepTool } from "./grep.ts";
 import { ReadTool } from "./read.ts";
 import { type RegisteredTool, toolDefinitionsFrom } from "./tool.ts";
@@ -10,6 +11,7 @@ export const builtinTools = [
   WriteTool,
   BashTool,
   GrepTool,
+  GlobTool,
 ] as const satisfies readonly RegisteredTool[];
 
 export const toolDefinitions = toolDefinitionsFrom(builtinTools);
@@ -19,6 +21,7 @@ const toolsByName = {
   Write: WriteTool,
   Bash: BashTool,
   Grep: GrepTool,
+  Glob: GlobTool,
 } as const satisfies Record<ToolName, RegisteredTool>;
 
 export const isToolName = (name: string): name is ToolName => name in toolsByName;
