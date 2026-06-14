@@ -1,8 +1,8 @@
 import path from "node:path";
 import { Data, Effect } from "effect";
-import { collectFiles } from "./file-walk.ts";
-
-const DEFAULT_LIMIT = 50;
+import { collectFilesWithMeta } from "./file-walk.ts";
+import { DEFAULT_SEARCH_LIMIT } from "./tool-limits.ts";
+import { resolveToolPath } from "./tool-path.ts";
 
 export class GlobSearchError extends Data.TaggedError("GlobSearchError")<{
   readonly message: string;
@@ -22,7 +22,7 @@ export type GlobOptions = {
 const escapeRegexChar = (char: string): string =>
   /[\\^$+?.()|{}[\]]/.test(char) ? `\\${char}` : char;
 
-const globToRegExp = (glob: string): RegExp => {
+export const globToRegExp = (glob: string): RegExp => {
   let regex = "";
   let index = 0;
 
@@ -78,28 +78,50 @@ const globToRegExp = (glob: string): RegExp => {
   return new RegExp(`^${regex}$`);
 };
 
-const compilePattern = (pattern: string) =>
-  Effect.try({
-    try: () => globToRegExp(pattern),
-    catch: () =>
-      new GlobSearchError({
-        message: `invalid glob pattern: ${JSON.stringify(pattern)}`,
-      }),
-  });
-
 const toRelativePath = (root: string, filePath: string): string =>
   path.relative(root, filePath).split(path.sep).join("/");
 
-const matchesPattern = (
+const matchTargets = (
+  root: string,
+  filePath: string,
+  rootIsFile: boolean,
+): readonly string[] => {
+  const targets = new Set<string>();
+  const relativeToRoot = toRelativePath(root, filePath);
+
+  if (relativeToRoot.length > 0 && relativeToRoot !== ".") {
+    targets.add(relativeToRoot);
+  }
+
+  targets.add(path.basename(filePath));
+
+  if (rootIsFile) {
+    const relativeToCwd = path
+      .relative(process.cwd(), filePath)
+      .split(path.sep)
+      .join("/");
+
+    if (relativeToCwd.length > 0) {
+      targets.add(relativeToCwd);
+    }
+  }
+
+  return [...targets];
+};
+
+export const matchesPattern = (
   pattern: RegExp,
   globPattern: string,
   root: string,
   filePath: string,
+  rootIsFile: boolean,
 ): boolean => {
-  const relativePath = toRelativePath(root, filePath);
+  const targets = matchTargets(root, filePath, rootIsFile);
 
-  if (pattern.test(relativePath)) {
-    return true;
+  for (const target of targets) {
+    if (pattern.test(target)) {
+      return true;
+    }
   }
 
   if (!globPattern.includes("/")) {
@@ -113,15 +135,23 @@ export const globFiles = (
   options: GlobOptions,
 ): Effect.Effect<GlobResult, GlobSearchError> =>
   Effect.gen(function* () {
-    const pattern = yield* compilePattern(options.pattern);
-    const limit = options.limit ?? DEFAULT_LIMIT;
-    const root = path.resolve(
-      process.cwd(),
-      options.searchPath ?? ".",
-    );
+    let pattern: RegExp;
 
-    const candidates = yield* Effect.tryPromise({
-      try: () => collectFiles(root),
+    try {
+      pattern = globToRegExp(options.pattern);
+    } catch {
+      return yield* Effect.fail(
+        new GlobSearchError({
+          message: `invalid glob pattern: ${JSON.stringify(options.pattern)}`,
+        }),
+      );
+    }
+
+    const limit = options.limit ?? DEFAULT_SEARCH_LIMIT;
+    const root = resolveToolPath(options.searchPath ?? ".");
+
+    const collected = yield* Effect.tryPromise({
+      try: () => collectFilesWithMeta(root),
       catch: (cause) =>
         new GlobSearchError({
           message: `failed to search path "${root}": ${String(cause)}`,
@@ -131,23 +161,24 @@ export const globFiles = (
     const files: string[] = [];
     let truncated = false;
 
-    for (const filePath of candidates) {
+    for (const filePath of collected.files) {
+      if (!matchesPattern(
+        pattern,
+        options.pattern,
+        root,
+        filePath,
+        collected.rootIsFile,
+      )) {
+        continue;
+      }
+
       if (files.length >= limit) {
         truncated = true;
         break;
       }
 
-      if (matchesPattern(pattern, options.pattern, root, filePath)) {
-        files.push(filePath);
-      }
+      files.push(filePath);
     }
 
-    if (files.length >= limit) {
-      truncated = true;
-    }
-
-    return {
-      files: files.slice(0, limit),
-      truncated,
-    };
+    return { files, truncated };
   });

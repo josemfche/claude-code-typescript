@@ -34,7 +34,7 @@ export const decodeCliArgs = (
         new InvalidCliArgs({
           reason:
             flag !== "-p" || !prompt
-              ? "error: -p flag is required"
+              ? "-p flag is required"
               : formatParseError(error),
         }),
     ),

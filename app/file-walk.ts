@@ -10,7 +10,14 @@ const isDirectory = async (target: string): Promise<boolean> => {
 
 const shouldSkipDir = (name: string): boolean => SKIP_DIRS.has(name);
 
-export const collectFiles = async (root: string): Promise<string[]> => {
+export type CollectFilesResult = {
+  readonly files: readonly string[];
+  readonly rootIsFile: boolean;
+};
+
+export const collectFilesWithMeta = async (
+  root: string,
+): Promise<CollectFilesResult> => {
   const files: string[] = [];
 
   const walk = async (directory: string): Promise<void> => {
@@ -34,9 +41,13 @@ export const collectFiles = async (root: string): Promise<string[]> => {
 
   if (await isDirectory(root)) {
     await walk(root);
-  } else {
-    files.push(root);
+    return { files, rootIsFile: false };
   }
 
-  return files;
+  return { files: [root], rootIsFile: true };
+};
+
+export const collectFiles = async (root: string): Promise<string[]> => {
+  const result = await collectFilesWithMeta(root);
+  return [...result.files];
 };

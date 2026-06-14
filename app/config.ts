@@ -32,26 +32,19 @@ const formatConfigError = (error: ConfigError.ConfigError): string =>
       `unsupported config at ${path.join(".")}: ${message}`,
   });
 
+const mapConfigError = (error: ConfigError.ConfigError) => {
+  const reason = formatConfigError(error);
+
+  if (reason.includes("OPENROUTER_API_KEY")) {
+    return new MissingApiKey();
+  }
+
+  return new ConfigFailed({ reason });
+};
+
 export const AppConfigLive = Layer.effect(
   AppConfigService,
   Effect.gen(function* () {
-    const apiKey = yield* Config.string("OPENROUTER_API_KEY").pipe(
-      Effect.mapError(() => new MissingApiKey()),
-    );
-
-    const rest = yield* Config.all({
-      baseURL: Config.string("OPENROUTER_BASE_URL").pipe(
-        Config.withDefault("https://openrouter.ai/api/v1"),
-      ),
-      model: Config.string("OPENROUTER_MODEL").pipe(
-        Config.withDefault("anthropic/claude-haiku-4.5"),
-      ),
-    }).pipe(
-      Effect.mapError(
-        (error) => new ConfigFailed({ reason: formatConfigError(error) }),
-      ),
-    );
-
-    return { apiKey, ...rest };
-  }),
+    return yield* AppConfigSchema;
+  }).pipe(Effect.mapError(mapConfigError)),
 );

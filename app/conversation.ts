@@ -2,9 +2,13 @@ import type {
   AssistantMessage,
   ChatMessage,
   Conversation,
+  FinishReason,
   TurnOutcome,
   TurnResult,
 } from "./domain.ts";
+
+const EMPTY_RESPONSE_NUDGE =
+  "Your previous response was empty. Provide a final answer or use tools to complete the task.";
 
 export const startConversation = (prompt: string): Conversation => [
   { role: "user", content: prompt },
@@ -24,24 +28,57 @@ export const appendToolResult = (
   { role: "tool", toolCallId, content },
 ];
 
+const appendUserMessage = (
+  conversation: Conversation,
+  content: string,
+): Conversation => [...conversation, { role: "user", content }];
+
 const shouldStopTurn = (toolCallCount: number): boolean => toolCallCount === 0;
+
+const formatFinalContent = (
+  content: string,
+  finishReason: FinishReason,
+): string => {
+  if (finishReason !== "length") {
+    return content;
+  }
+
+  return `${content}\n\n[response truncated: model hit length limit]`;
+};
 
 export const resolveTurn = (
   conversation: Conversation,
   turn: TurnResult,
 ): TurnOutcome => {
   const nextConversation = appendAssistantMessage(conversation, turn.assistant);
+  const toolCallCount = turn.assistant.toolCalls.length;
 
-  if (shouldStopTurn(turn.assistant.toolCalls.length)) {
+  if (turn.finishReason === "tool_calls" && toolCallCount === 0) {
     return {
-      _tag: "Done",
-      content: turn.assistant.content ?? "",
+      _tag: "Continue",
+      conversation: nextConversation,
+    };
+  }
+
+  if (!shouldStopTurn(toolCallCount)) {
+    return {
+      _tag: "Continue",
+      conversation: nextConversation,
+    };
+  }
+
+  const content = turn.assistant.content?.trim() ?? "";
+
+  if (content.length === 0) {
+    return {
+      _tag: "Continue",
+      conversation: appendUserMessage(nextConversation, EMPTY_RESPONSE_NUDGE),
     };
   }
 
   return {
-    _tag: "Continue",
-    conversation: nextConversation,
+    _tag: "Done",
+    content: formatFinalContent(turn.assistant.content ?? "", turn.finishReason),
   };
 };
 

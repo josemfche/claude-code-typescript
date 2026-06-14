@@ -18,14 +18,10 @@ export const builtinTools = [
 
 export const toolDefinitions = toolDefinitionsFrom(builtinTools);
 
-const toolsByName = {
-  Read: ReadTool,
-  Write: WriteTool,
-  Edit: EditTool,
-  Bash: BashTool,
-  Grep: GrepTool,
-  Glob: GlobTool,
-} as const satisfies Record<ToolName, RegisteredTool>;
+export const toolsByName = builtinTools.reduce(
+  (tools, tool) => ({ ...tools, [tool.name]: tool }),
+  {} as Record<ToolName, RegisteredTool>,
+);
 
 export const isToolName = (name: string): name is ToolName => name in toolsByName;
 

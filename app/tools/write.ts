@@ -1,5 +1,6 @@
 import { access, writeFile } from "node:fs/promises";
 import { Effect, Schema } from "effect";
+import { resolveToolPath } from "../tool-path.ts";
 import { defineTool, ToolFailure } from "./tool.ts";
 
 export const Input = Schema.Struct({
@@ -31,23 +32,25 @@ export const WriteTool = defineTool({
   input: Input,
   execute: (input) =>
     Effect.gen(function* () {
+      const filePath = resolveToolPath(input.file_path);
+
       const existed = yield* Effect.tryPromise({
-        try: () => fileExists(input.file_path),
+        try: () => fileExists(filePath),
         catch: (cause) =>
           new ToolFailure({
-            message: `failed to inspect file "${input.file_path}": ${String(cause)}`,
+            message: `failed to inspect file "${filePath}": ${String(cause)}`,
           }),
       });
 
       yield* Effect.tryPromise({
-        try: () => writeFile(input.file_path, input.content, "utf-8"),
+        try: () => writeFile(filePath, input.content, "utf-8"),
         catch: (cause) =>
           new ToolFailure({
-            message: `failed to write file "${input.file_path}": ${String(cause)}`,
+            message: `failed to write file "${filePath}": ${String(cause)}`,
           }),
       });
 
-      return { path: input.file_path, existed };
+      return { path: filePath, existed };
     }),
   toModelOutput: ({ output }) =>
     output.existed

@@ -1,9 +1,8 @@
 import { readFile } from "node:fs/promises";
-import path from "node:path";
 import { Data, Effect } from "effect";
 import { collectFiles } from "./file-walk.ts";
-
-const DEFAULT_LIMIT = 50;
+import { DEFAULT_SEARCH_LIMIT } from "./tool-limits.ts";
+import { resolveToolPath } from "./tool-path.ts";
 
 export class GrepSearchError extends Data.TaggedError("GrepSearchError")<{
   readonly message: string;
@@ -18,6 +17,7 @@ export type GrepMatch = {
 export type GrepResult = {
   readonly matches: readonly GrepMatch[];
   readonly truncated: boolean;
+  readonly skippedFiles: number;
 };
 
 export type GrepOptions = {
@@ -64,16 +64,20 @@ const searchFile = async (
   return { matches, consumed: matches.length };
 };
 
+type SearchFileResult =
+  | { readonly tag: "ok"; readonly matches: readonly GrepMatch[] }
+  | { readonly tag: "skipped" };
+
 const trySearchFile = async (
   filePath: string,
   pattern: RegExp,
   remaining: number,
-): Promise<readonly GrepMatch[]> => {
+): Promise<SearchFileResult> => {
   try {
     const result = await searchFile(filePath, pattern, remaining);
-    return result.matches;
+    return { tag: "ok", matches: result.matches };
   } catch {
-    return [];
+    return { tag: "skipped" };
   }
 };
 
@@ -82,11 +86,8 @@ export const grepFiles = (
 ): Effect.Effect<GrepResult, GrepSearchError> =>
   Effect.gen(function* () {
     const pattern = yield* compilePattern(options.pattern);
-    const limit = options.limit ?? DEFAULT_LIMIT;
-    const root = path.resolve(
-      process.cwd(),
-      options.searchPath ?? ".",
-    );
+    const limit = options.limit ?? DEFAULT_SEARCH_LIMIT;
+    const root = resolveToolPath(options.searchPath ?? ".");
 
     const files = yield* Effect.tryPromise({
       try: () => collectFiles(root),
@@ -98,6 +99,7 @@ export const grepFiles = (
 
     const matches: GrepMatch[] = [];
     let truncated = false;
+    let skippedFiles = 0;
 
     for (const filePath of files) {
       if (matches.length >= limit) {
@@ -105,11 +107,16 @@ export const grepFiles = (
         break;
       }
 
-      const fileMatches = yield* Effect.promise(() =>
+      const searchResult = yield* Effect.promise(() =>
         trySearchFile(filePath, pattern, limit - matches.length),
       );
 
-      matches.push(...fileMatches);
+      if (searchResult.tag === "skipped") {
+        skippedFiles += 1;
+        continue;
+      }
+
+      matches.push(...searchResult.matches);
 
       if (matches.length >= limit) {
         truncated = true;
@@ -117,5 +124,5 @@ export const grepFiles = (
       }
     }
 
-    return { matches, truncated };
+    return { matches, truncated, skippedFiles };
   });

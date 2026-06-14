@@ -1,8 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { Effect, Schema } from "effect";
+import { resolveToolPath } from "../tool-path.ts";
+import { truncateForModel } from "../tool-limits.ts";
 import { defineTool, ToolFailure } from "./tool.ts";
-
-const MAX_MODEL_CHARS = 8_000;
 
 export const Input = Schema.Struct({
   file_path: Schema.String.pipe(
@@ -18,26 +18,20 @@ export type Output = {
   readonly content: string;
 };
 
-const truncateForModel = (content: string): string => {
-  if (content.length <= MAX_MODEL_CHARS) {
-    return content;
-  }
-
-  const omitted = content.length - MAX_MODEL_CHARS;
-  return `${content.slice(0, MAX_MODEL_CHARS)}\n\n[truncated ${omitted} characters]`;
-};
-
 export const ReadTool = defineTool({
   name: "Read",
   description: "Read and return the contents of a file",
   input: Input,
-  execute: (input) =>
-    Effect.tryPromise({
-      try: () => readFile(input.file_path, "utf-8"),
+  execute: (input) => {
+    const filePath = resolveToolPath(input.file_path);
+
+    return Effect.tryPromise({
+      try: () => readFile(filePath, "utf-8"),
       catch: (cause) =>
         new ToolFailure({
-          message: `failed to read file "${input.file_path}": ${String(cause)}`,
+          message: `failed to read file "${filePath}": ${String(cause)}`,
         }),
-    }).pipe(Effect.map((content) => ({ path: input.file_path, content }))),
+    }).pipe(Effect.map((content) => ({ path: filePath, content })));
+  },
   toModelOutput: ({ output }) => truncateForModel(output.content),
 });

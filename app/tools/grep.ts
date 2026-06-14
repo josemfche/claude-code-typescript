@@ -1,8 +1,7 @@
 import { Effect, Schema } from "effect";
 import { grepFiles, type GrepResult } from "../grep.ts";
+import { truncateForModel } from "../tool-limits.ts";
 import { defineTool, ToolFailure } from "./tool.ts";
-
-const MAX_MODEL_CHARS = 8_000;
 
 export const Input = Schema.Struct({
   pattern: Schema.String.pipe(
@@ -34,6 +33,10 @@ export type Input = typeof Input.Type;
 
 const formatGrepOutput = (result: GrepResult): string => {
   if (result.matches.length === 0) {
+    if (result.skippedFiles > 0) {
+      return `No matches found (${result.skippedFiles} unreadable file${result.skippedFiles === 1 ? "" : "s"} skipped)`;
+    }
+
     return "No matches found";
   }
 
@@ -60,14 +63,14 @@ const formatGrepOutput = (result: GrepResult): string => {
     );
   }
 
-  const output = lines.join("\n");
-
-  if (output.length <= MAX_MODEL_CHARS) {
-    return output;
+  if (result.skippedFiles > 0) {
+    lines.push(
+      "",
+      `(Skipped ${result.skippedFiles} unreadable file${result.skippedFiles === 1 ? "" : "s"}.)`,
+    );
   }
 
-  const omitted = output.length - MAX_MODEL_CHARS;
-  return `${output.slice(0, MAX_MODEL_CHARS)}\n\n[truncated ${omitted} characters]`;
+  return truncateForModel(lines.join("\n"));
 };
 
 export const GrepTool = defineTool({

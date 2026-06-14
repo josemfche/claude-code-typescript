@@ -25,7 +25,18 @@ export const Input = Schema.Struct({
       }),
     ),
   ),
-});
+}).pipe(
+  Schema.filter((input) => {
+    if (input.old_string === input.new_string) {
+      return {
+        path: ["new_string"],
+        message: "new_string must differ from old_string",
+      };
+    }
+
+    return true;
+  }),
+);
 
 export type Input = typeof Input.Type;
 
@@ -45,6 +56,5 @@ export const EditTool = defineTool({
         (error) => new ToolFailure({ message: error.message }),
       ),
     ),
-  toModelOutput: ({ input, output }) =>
-    formatEditOutput(output, input.old_string, input.new_string),
+  toModelOutput: ({ output }) => formatEditOutput(output),
 });

@@ -1,8 +1,7 @@
 import { Effect, Schema } from "effect";
 import { globFiles, type GlobResult } from "../glob.ts";
+import { truncateForModel } from "../tool-limits.ts";
 import { defineTool, ToolFailure } from "./tool.ts";
-
-const MAX_MODEL_CHARS = 8_000;
 
 export const Input = Schema.Struct({
   pattern: Schema.String.pipe(
@@ -43,18 +42,11 @@ const formatGlobOutput = (result: GlobResult): string => {
   if (result.truncated) {
     lines.push(
       "",
-      `(Results truncated at ${result.files.length} files. Use a more specific path or pattern.)`,
+      `(Results truncated at ${result.files.length} files. More matches may exist.)`,
     );
   }
 
-  const output = lines.join("\n");
-
-  if (output.length <= MAX_MODEL_CHARS) {
-    return output;
-  }
-
-  const omitted = output.length - MAX_MODEL_CHARS;
-  return `${output.slice(0, MAX_MODEL_CHARS)}\n\n[truncated ${omitted} characters]`;
+  return truncateForModel(lines.join("\n"));
 };
 
 export const GlobTool = defineTool({

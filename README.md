@@ -1,23 +1,35 @@
 ## What it does
 
 - Sends a prompt to the model with tool definitions
-- Runs an agent loop until the model returns a final answer (`finish_reason: stop`)
-- Executes tool calls (`Read`, `Write`, `Bash`) and feeds results back into the conversation
+- Runs an agent loop until the model returns a final answer with no pending tool calls
+- Executes tool calls (`Read`, `Write`, `Edit`, `Bash`, `Grep`, `Glob`) and feeds results back into the conversation
 - Prints only the final answer to stdout; debug output goes to stderr
 
 ## Project layout
 
 ```
 app/
-  main.ts              Entry point
-  program.ts           CLI orchestration
-  agent.ts             Agent loop
-  llm.ts               API client
-  tools.ts               Tool registry and execution
-  schemas.ts           Request/response validation
-  config.ts            Environment config
-  errors.ts            Tagged errors
-  tool-definitions.ts  Tool specs sent to the model
+  main.ts                 Entry point
+  program.ts              CLI orchestration
+  agent.ts                Agent loop
+  conversation.ts         Message history
+  config.ts               Environment config (Effect Config)
+  errors.ts               Tagged errors
+  layers.ts               AppLive composition
+  tool-limits.ts          Shared model output limits
+  tool-path.ts            Shared path resolution
+  file-walk.ts            Directory traversal for search tools
+  edit.ts / grep.ts / glob.ts / bash.ts
+  llm/
+    service.ts            LlmService port
+    openai-provider.ts    OpenAI adapter
+  tools/
+    tool.ts               defineTool factory
+    builtins.ts           Built-in tool registry
+    registry.ts           ToolRegistry service
+    read.ts / write.ts / edit.ts / bash-tool.ts / grep.ts / glob.ts
+test/
+  tools.test.ts           Unit tests for core tool and turn logic
 ```
 
 ## Requirements
@@ -28,12 +40,14 @@ app/
 Optional:
 
 - `OPENROUTER_BASE_URL` (defaults to `https://openrouter.ai/api/v1`)
-- `OPENROUTER_MODEL` (defaults to `tencent/hy3-preview`)
+- `OPENROUTER_MODEL` (defaults to `anthropic/claude-haiku-4.5`)
 
 ## Run locally
 
 ```sh
 bun install
+bun run typecheck
+bun test
 ./your_program.sh -p "What is 10+4? Respond with only a number."
 ```
 

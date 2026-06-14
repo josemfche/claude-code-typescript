@@ -1,5 +1,6 @@
 import { Effect, Schema } from "effect";
 import { runShellCommand, type ShellResult } from "../bash.ts";
+import { truncateForModel } from "../tool-limits.ts";
 import { defineTool } from "./tool.ts";
 
 export const Input = Schema.Struct({
@@ -46,5 +47,5 @@ export const BashTool = defineTool({
   description: "Execute a shell command",
   input: Input,
   execute: (input) => runShellCommand(input.command),
-  toModelOutput: ({ output }) => formatShellOutput(output),
+  toModelOutput: ({ output }) => truncateForModel(formatShellOutput(output)),
 });
