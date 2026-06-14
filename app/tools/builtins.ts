@@ -1,5 +1,6 @@
 import type { ToolName } from "../domain.ts";
 import { BashTool } from "./bash-tool.ts";
+import { EditTool } from "./edit.ts";
 import { GlobTool } from "./glob.ts";
 import { GrepTool } from "./grep.ts";
 import { ReadTool } from "./read.ts";
@@ -9,6 +10,7 @@ import { WriteTool } from "./write.ts";
 export const builtinTools = [
   ReadTool,
   WriteTool,
+  EditTool,
   BashTool,
   GrepTool,
   GlobTool,
@@ -19,6 +21,7 @@ export const toolDefinitions = toolDefinitionsFrom(builtinTools);
 const toolsByName = {
   Read: ReadTool,
   Write: WriteTool,
+  Edit: EditTool,
   Bash: BashTool,
   Grep: GrepTool,
   Glob: GlobTool,
