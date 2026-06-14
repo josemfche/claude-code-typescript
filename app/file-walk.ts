@@ -1,14 +1,7 @@
 import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
 
-export const SKIP_DIRS = new Set(["node_modules", ".git", ".codecrafters"]);
-
-const isDirectory = async (target: string): Promise<boolean> => {
-  const info = await stat(target);
-  return info.isDirectory();
-};
-
-const shouldSkipDir = (name: string): boolean => SKIP_DIRS.has(name);
+const SKIP_DIRS = new Set(["node_modules", ".git", ".codecrafters"]);
 
 export type CollectFilesResult = {
   readonly files: readonly string[];
@@ -25,7 +18,7 @@ export const collectFilesWithMeta = async (
 
     for (const entry of entries) {
       if (entry.isDirectory()) {
-        if (shouldSkipDir(entry.name)) {
+        if (SKIP_DIRS.has(entry.name)) {
           continue;
         }
 
@@ -39,7 +32,7 @@ export const collectFilesWithMeta = async (
     }
   };
 
-  if (await isDirectory(root)) {
+  if ((await stat(root)).isDirectory()) {
     await walk(root);
     return { files, rootIsFile: false };
   }
@@ -47,7 +40,5 @@ export const collectFilesWithMeta = async (
   return { files: [root], rootIsFile: true };
 };
 
-export const collectFiles = async (root: string): Promise<string[]> => {
-  const result = await collectFilesWithMeta(root);
-  return [...result.files];
-};
+export const collectFiles = async (root: string): Promise<readonly string[]> =>
+  (await collectFilesWithMeta(root)).files;

@@ -1,7 +1,7 @@
 import { Effect, Schema } from "effect";
 import { grepFiles, type GrepResult } from "../grep.ts";
-import { truncateForModel } from "../tool-limits.ts";
-import { defineTool, ToolFailure } from "./tool.ts";
+import { appendTruncationNotice, truncateForModel } from "../tool-limits.ts";
+import { defineTool, mapToToolFailure } from "./tool.ts";
 
 export const Input = Schema.Struct({
   pattern: Schema.String.pipe(
@@ -31,10 +31,13 @@ export const Input = Schema.Struct({
 
 export type Input = typeof Input.Type;
 
+const unreadableFiles = (count: number): string =>
+  `${count} unreadable file${count === 1 ? "" : "s"}`;
+
 const formatGrepOutput = (result: GrepResult): string => {
   if (result.matches.length === 0) {
     if (result.skippedFiles > 0) {
-      return `No matches found (${result.skippedFiles} unreadable file${result.skippedFiles === 1 ? "" : "s"} skipped)`;
+      return `No matches found (${unreadableFiles(result.skippedFiles)} skipped)`;
     }
 
     return "No matches found";
@@ -57,17 +60,16 @@ const formatGrepOutput = (result: GrepResult): string => {
   }
 
   if (result.truncated) {
-    lines.push(
-      "",
-      `(Results truncated at ${result.matches.length} matches. Use a more specific path or pattern.)`,
+    appendTruncationNotice(
+      lines,
+      result.matches.length,
+      "matches",
+      "Use a more specific path or pattern.",
     );
   }
 
   if (result.skippedFiles > 0) {
-    lines.push(
-      "",
-      `(Skipped ${result.skippedFiles} unreadable file${result.skippedFiles === 1 ? "" : "s"}.)`,
-    );
+    lines.push("", `(Skipped ${unreadableFiles(result.skippedFiles)}.)`);
   }
 
   return truncateForModel(lines.join("\n"));
@@ -83,10 +85,6 @@ export const GrepTool = defineTool({
       pattern: input.pattern,
       searchPath: input.path,
       limit: input.limit,
-    }).pipe(
-      Effect.mapError(
-        (error) => new ToolFailure({ message: error.message }),
-      ),
-    ),
+    }).pipe(Effect.mapError(mapToToolFailure)),
   toModelOutput: ({ output }) => formatGrepOutput(output),
 });

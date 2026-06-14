@@ -1,6 +1,6 @@
 import { Effect, Schema } from "effect";
 import { editFile, formatEditOutput } from "../edit.ts";
-import { defineTool, ToolFailure } from "./tool.ts";
+import { defineTool, mapToToolFailure } from "./tool.ts";
 
 export const Input = Schema.Struct({
   file_path: Schema.String.pipe(
@@ -51,10 +51,6 @@ export const EditTool = defineTool({
       old_string: input.old_string,
       new_string: input.new_string,
       replace_all: input.replace_all,
-    }).pipe(
-      Effect.mapError(
-        (error) => new ToolFailure({ message: error.message }),
-      ),
-    ),
+    }).pipe(Effect.mapError(mapToToolFailure)),
   toModelOutput: ({ output }) => formatEditOutput(output),
 });

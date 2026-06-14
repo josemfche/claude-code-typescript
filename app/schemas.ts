@@ -1,4 +1,5 @@
-import { Effect, ParseResult, Schema } from "effect";
+import { Effect, Schema } from "effect";
+import { formatParseError } from "./parse.ts";
 import type { FunctionToolCall as FunctionToolCallType } from "./domain.ts";
 import { InvalidCliArgs, InvalidToolCall } from "./errors.ts";
 import { isToolName } from "./tools/builtins.ts";
@@ -20,9 +21,6 @@ export const FunctionToolCallSchema = Schema.Struct({
 }) satisfies Schema.Schema<FunctionToolCallType>;
 
 export type FunctionToolCall = FunctionToolCallType;
-
-const formatParseError = (error: ParseResult.ParseError): string =>
-  ParseResult.TreeFormatter.formatErrorSync(error);
 
 export const decodeCliArgs = (
   flag: string | undefined,

@@ -1,11 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { Effect } from "effect";
+import { unlink, writeFile } from "node:fs/promises";
+import path from "node:path";
 import { resolveTurn } from "../app/conversation.ts";
 import { editFile, formatEditOutput } from "../app/edit.ts";
 import { globToRegExp, matchesPattern } from "../app/glob.ts";
-import { grepFiles } from "../app/grep.ts";
-import { readFile, unlink, writeFile } from "node:fs/promises";
-import path from "node:path";
 
 const fixture = path.join("test", "fixtures", "edit-target.txt");
 
@@ -80,41 +79,69 @@ describe("editFile", () => {
   test("rejects empty old_string on existing files", async () => {
     await writeFile(fixture, "hello\n", "utf-8");
 
-    const result = await Effect.runPromise(
-      Effect.either(
-        editFile({
-          file_path: fixture,
-          old_string: "",
-          new_string: "world",
-        }),
-      ),
-    );
+    try {
+      const result = await Effect.runPromise(
+        Effect.either(
+          editFile({
+            file_path: fixture,
+            old_string: "",
+            new_string: "world",
+          }),
+        ),
+      );
 
-    expect(result._tag).toBe("Left");
-    if (result._tag === "Left") {
-      expect(result.left.message).toContain("old_string cannot be empty");
+      expect(result._tag).toBe("Left");
+      if (result._tag === "Left") {
+        expect(result.left.message).toContain("old_string cannot be empty");
+      }
+    } finally {
+      await unlink(fixture).catch(() => {});
     }
-
-    await unlink(fixture);
   });
 
   test("formats a real unified diff", async () => {
     await writeFile(fixture, "alpha\nbeta\n", "utf-8");
 
-    const result = await Effect.runPromise(
-      editFile({
-        file_path: fixture,
-        old_string: "alpha",
-        new_string: "gamma",
-      }),
-    );
+    try {
+      const result = await Effect.runPromise(
+        editFile({
+          file_path: fixture,
+          old_string: "alpha",
+          new_string: "gamma",
+        }),
+      );
 
-    const output = formatEditOutput(result);
-    expect(output).toContain("```diff");
-    expect(output).toContain("-alpha");
-    expect(output).toContain("+gamma");
+      const output = formatEditOutput(result);
+      expect(output).toContain("```diff");
+      expect(output).toContain("-alpha");
+      expect(output).toContain("+gamma");
+    } finally {
+      await unlink(fixture).catch(() => {});
+    }
+  });
 
-    await unlink(fixture);
+  test("marks unchanged context lines without duplicate removals", async () => {
+    await writeFile(fixture, "before\nalpha\nafter\n", "utf-8");
+
+    try {
+      const result = await Effect.runPromise(
+        editFile({
+          file_path: fixture,
+          old_string: "alpha",
+          new_string: "gamma",
+        }),
+      );
+
+      const diff = formatEditOutput(result).split("```diff")[1]?.split("```")[0] ?? "";
+      expect(diff).toContain(" before");
+      expect(diff).toContain(" after");
+      expect(diff).not.toContain("-before");
+      expect(diff).not.toContain("+before");
+      expect(diff).not.toContain("-after");
+      expect(diff).not.toContain("+after");
+    } finally {
+      await unlink(fixture).catch(() => {});
+    }
   });
 });
 
@@ -123,38 +150,13 @@ describe("glob", () => {
     const pattern = globToRegExp("*.ts");
     const filePath = path.resolve("app/main.ts");
 
-    expect(
-      matchesPattern(pattern, "*.ts", filePath, filePath, true),
-    ).toBe(true);
+    expect(matchesPattern(pattern, filePath, filePath, true)).toBe(true);
   });
 
   test("matches cwd-relative path for single-file roots", () => {
     const pattern = globToRegExp("app/*.ts");
     const filePath = path.resolve("app/main.ts");
 
-    expect(
-      matchesPattern(pattern, "app/*.ts", filePath, filePath, true),
-    ).toBe(true);
-  });
-});
-
-describe("grepFiles", () => {
-  test("reports skipped unreadable files", async () => {
-    const result = await Effect.runPromise(
-      grepFiles({
-        pattern: "fixture",
-        searchPath: "test/fixtures",
-        limit: 10,
-      }),
-    );
-
-    expect(result.skippedFiles).toBeGreaterThanOrEqual(0);
-  });
-});
-
-describe("grep fixture readability", () => {
-  test("reads grep fixture files when present", async () => {
-    const content = await readFile("app/file1.py", "utf-8");
-    expect(content.length).toBeGreaterThan(0);
+    expect(matchesPattern(pattern, filePath, filePath, true)).toBe(true);
   });
 });

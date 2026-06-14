@@ -40,81 +40,8 @@ const toFileNeedle = (
   ending: "\n" | "\r\n",
 ): string => convertToLineEnding(normalizeLineEndings(text), ending);
 
-const countOccurrences = (text: string, needle: string): number => {
-  if (needle.length === 0) {
-    return 0;
-  }
-
-  let count = 0;
-  let index = 0;
-
-  while ((index = text.indexOf(needle, index)) !== -1) {
-    count += 1;
-    index += needle.length;
-  }
-
-  return count;
-};
-
-type DiffOp =
-  | { readonly tag: "equal"; readonly lines: readonly string[] }
-  | { readonly tag: "delete"; readonly lines: readonly string[] }
-  | { readonly tag: "insert"; readonly lines: readonly string[] };
-
-const diffLineArrays = (
-  before: readonly string[],
-  after: readonly string[],
-): DiffOp[] => {
-  const rows = before.length;
-  const cols = after.length;
-  const lengths = Array.from({ length: rows + 1 }, () =>
-    Array<number>(cols + 1).fill(0),
-  );
-
-  for (let row = 1; row <= rows; row += 1) {
-    for (let col = 1; col <= cols; col += 1) {
-      if (before[row - 1] === after[col - 1]) {
-        lengths[row][col] = lengths[row - 1][col - 1] + 1;
-      } else {
-        lengths[row][col] = Math.max(lengths[row - 1][col], lengths[row][col - 1]);
-      }
-    }
-  }
-
-  const ops: DiffOp[] = [];
-  let row = rows;
-  let col = cols;
-
-  const pushLines = (tag: DiffOp["tag"], line: string) => {
-    const last = ops.at(-1);
-    if (last?.tag === tag) {
-      ops[ops.length - 1] = { tag, lines: [...last.lines, line] };
-      return;
-    }
-
-    ops.push({ tag, lines: [line] });
-  };
-
-  while (row > 0 || col > 0) {
-    if (row > 0 && col > 0 && before[row - 1] === after[col - 1]) {
-      pushLines("equal", before[row - 1]);
-      row -= 1;
-      col -= 1;
-      continue;
-    }
-
-    if (col > 0 && (row === 0 || lengths[row][col - 1] >= lengths[row - 1][col])) {
-      pushLines("insert", after[col - 1]);
-      col -= 1;
-      continue;
-    }
-
-    pushLines("delete", before[row - 1]);
-    row -= 1;
-  }
-
-  return ops.reverse();
-};
+const countOccurrences = (text: string, needle: string): number =>
+  text.split(needle).length - 1;
 
 const trimDiffIndent = (diff: string): string => {
   const lines = diff.split("\n");
@@ -162,62 +89,139 @@ const trimDiffIndent = (diff: string): string => {
     .join("\n");
 };
 
-type FlatEntry = {
-  readonly type: DiffOp["tag"];
-  readonly line: string;
-};
+const firstDiffRange = (
+  beforeLines: readonly string[],
+  afterLines: readonly string[],
+): { readonly start: number; readonly endBefore: number; readonly endAfter: number } => {
+  const maxShared = Math.min(beforeLines.length, afterLines.length);
+  let start = 0;
 
-const flattenOps = (ops: readonly DiffOp[]): FlatEntry[] =>
-  ops.flatMap((op) => op.lines.map((line) => ({ type: op.tag, line })));
-
-const buildHunkRanges = (flat: readonly FlatEntry[]): Array<[number, number]> => {
-  const changeIndices = flat.flatMap((entry, index) =>
-    entry.type === "equal" ? [] : [index],
-  );
-
-  if (changeIndices.length === 0) {
-    return [];
+  while (start < maxShared && beforeLines[start] === afterLines[start]) {
+    start += 1;
   }
 
-  const ranges: Array<[number, number]> = [];
-  let start = Math.max(0, changeIndices[0] - CONTEXT_LINES);
-  let end = Math.min(flat.length - 1, changeIndices[0] + CONTEXT_LINES);
+  let endBefore = beforeLines.length - 1;
+  let endAfter = afterLines.length - 1;
 
-  for (let index = 1; index < changeIndices.length; index += 1) {
-    const changeIndex = changeIndices[index];
+  while (
+    endBefore >= start &&
+    endAfter >= start &&
+    beforeLines[endBefore] === afterLines[endAfter]
+  ) {
+    endBefore -= 1;
+    endAfter -= 1;
+  }
 
-    if (changeIndex - CONTEXT_LINES <= end + 1) {
-      end = Math.min(flat.length - 1, changeIndex + CONTEXT_LINES);
+  return { start, endBefore, endAfter };
+};
+
+type DiffOp =
+  | { readonly tag: "equal"; readonly lines: readonly string[] }
+  | { readonly tag: "delete"; readonly lines: readonly string[] }
+  | { readonly tag: "insert"; readonly lines: readonly string[] };
+
+const diffLineArrays = (
+  before: readonly string[],
+  after: readonly string[],
+): DiffOp[] => {
+  const rows = before.length;
+  const cols = after.length;
+  const lengths = Array.from({ length: rows + 1 }, () =>
+    Array<number>(cols + 1).fill(0),
+  );
+
+  for (let row = 1; row <= rows; row += 1) {
+    for (let col = 1; col <= cols; col += 1) {
+      if (before[row - 1] === after[col - 1]) {
+        lengths[row][col] = lengths[row - 1][col - 1] + 1;
+      } else {
+        lengths[row][col] = Math.max(lengths[row - 1][col], lengths[row][col - 1]);
+      }
+    }
+  }
+
+  const ops: DiffOp[] = [];
+  let row = rows;
+  let col = cols;
+  let pendingTag: DiffOp["tag"] | null = null;
+  let pendingLines: string[] = [];
+
+  const flush = () => {
+    if (pendingTag && pendingLines.length > 0) {
+      ops.push({ tag: pendingTag, lines: pendingLines });
+      pendingLines = [];
+      pendingTag = null;
+    }
+  };
+
+  const pushLine = (tag: DiffOp["tag"], line: string) => {
+    if (pendingTag !== tag) {
+      flush();
+      pendingTag = tag;
+    }
+
+    pendingLines.push(line);
+  };
+
+  while (row > 0 || col > 0) {
+    if (row > 0 && col > 0 && before[row - 1] === after[col - 1]) {
+      pushLine("equal", before[row - 1]);
+      row -= 1;
+      col -= 1;
       continue;
     }
 
-    ranges.push([start, end]);
-    start = Math.max(0, changeIndex - CONTEXT_LINES);
-    end = Math.min(flat.length - 1, changeIndex + CONTEXT_LINES);
+    if (col > 0 && (row === 0 || lengths[row][col - 1] >= lengths[row - 1][col])) {
+      pushLine("insert", after[col - 1]);
+      col -= 1;
+      continue;
+    }
+
+    pushLine("delete", before[row - 1]);
+    row -= 1;
   }
 
-  ranges.push([start, end]);
-  return ranges;
+  flush();
+  return ops.reverse();
 };
 
-const lineNumberAt = (
-  flat: readonly FlatEntry[],
-  index: number,
-): { readonly oldLine: number; readonly newLine: number } => {
-  let oldLine = 1;
-  let newLine = 1;
-
-  for (let cursor = 0; cursor < index; cursor += 1) {
-    const entry = flat[cursor];
-    if (entry.type !== "insert") {
-      oldLine += 1;
+const countDiffLines = (
+  ops: readonly DiffOp[],
+  side: "old" | "new",
+): number =>
+  ops.reduce((count, op) => {
+    if (side === "old" && op.tag !== "insert") {
+      return count + op.lines.length;
     }
-    if (entry.type !== "delete") {
-      newLine += 1;
+
+    if (side === "new" && op.tag !== "delete") {
+      return count + op.lines.length;
+    }
+
+    return count;
+  }, 0);
+
+const appendDiffOps = (
+  lines: string[],
+  ops: readonly DiffOp[],
+): number => {
+  let emitted = 0;
+
+  for (const op of ops) {
+    for (const line of op.lines) {
+      if (emitted >= MAX_DIFF_LINES) {
+        lines.push("... (diff truncated)");
+        return emitted;
+      }
+
+      const prefix =
+        op.tag === "equal" ? " " : op.tag === "delete" ? "-" : "+";
+      lines.push(`${prefix}${line}`);
+      emitted += 1;
     }
   }
 
-  return { oldLine, newLine };
+  return emitted;
 };
 
 const formatUnifiedDiff = (
@@ -227,45 +231,25 @@ const formatUnifiedDiff = (
 ): string => {
   const beforeLines = normalizeLineEndings(contentBefore).split("\n");
   const afterLines = normalizeLineEndings(contentAfter).split("\n");
-  const flat = flattenOps(diffLineArrays(beforeLines, afterLines));
-  const ranges = buildHunkRanges(flat);
+  const { start, endBefore, endAfter } = firstDiffRange(beforeLines, afterLines);
   const lines: string[] = [`--- ${filePath}`, `+++ ${filePath}`];
-  let emitted = 0;
 
-  for (const [start, end] of ranges) {
-    if (emitted >= MAX_DIFF_LINES) {
-      lines.push("... (diff truncated)");
-      break;
-    }
-
-    const { oldLine, newLine } = lineNumberAt(flat, start);
-    let oldCount = 0;
-    let newCount = 0;
-
-    for (let index = start; index <= end; index += 1) {
-      const entry = flat[index];
-      if (entry.type !== "insert") {
-        oldCount += 1;
-      }
-      if (entry.type !== "delete") {
-        newCount += 1;
-      }
-    }
-
-    lines.push(`@@ -${oldLine},${oldCount} +${newLine},${newCount} @@`);
-
-    for (let index = start; index <= end && emitted < MAX_DIFF_LINES; index += 1) {
-      const entry = flat[index];
-      const prefix =
-        entry.type === "equal" ? " " : entry.type === "delete" ? "-" : "+";
-      lines.push(`${prefix}${entry.line}`);
-      emitted += 1;
-    }
+  if (start > endBefore && start > endAfter) {
+    return lines.join("\n");
   }
 
-  if (emitted >= MAX_DIFF_LINES) {
-    lines.push("... (diff truncated)");
-  }
+  const hunkStart = Math.max(0, start - CONTEXT_LINES);
+  const hunkEndBefore = Math.min(beforeLines.length - 1, endBefore + CONTEXT_LINES);
+  const hunkEndAfter = Math.min(afterLines.length - 1, endAfter + CONTEXT_LINES);
+  const beforeSlice = beforeLines.slice(hunkStart, hunkEndBefore + 1);
+  const afterSlice = afterLines.slice(hunkStart, hunkEndAfter + 1);
+  const ops = diffLineArrays(beforeSlice, afterSlice);
+  const oldCount = countDiffLines(ops, "old");
+  const newCount = countDiffLines(ops, "new");
+
+  lines.push(`@@ -${hunkStart + 1},${oldCount} +${hunkStart + 1},${newCount} @@`);
+
+  appendDiffOps(lines, ops);
 
   return trimDiffIndent(lines.join("\n"));
 };
@@ -285,10 +269,11 @@ export const editFile = (
   options: EditOptions,
 ): Effect.Effect<EditResult, EditError> =>
   Effect.gen(function* () {
-    if (options.old_string === options.new_string) {
+    if (options.old_string.length === 0) {
       return yield* Effect.fail(
         new EditError({
-          message: "old_string and new_string must be different",
+          message:
+            "old_string cannot be empty when editing an existing file. Provide the exact text to replace, or use Write for a full-file replacement.",
         }),
       );
     }
@@ -302,15 +287,6 @@ export const editFile = (
           message: `failed to read file "${filePath}": ${String(cause)}`,
         }),
     });
-
-    if (options.old_string.length === 0) {
-      return yield* Effect.fail(
-        new EditError({
-          message:
-            "old_string cannot be empty when editing an existing file. Provide the exact text to replace, or use Write for a full-file replacement.",
-        }),
-      );
-    }
 
     const ending = detectLineEnding(content);
     const oldNeedle = toFileNeedle(options.old_string, ending);

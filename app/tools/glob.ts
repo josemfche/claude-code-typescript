@@ -1,7 +1,7 @@
 import { Effect, Schema } from "effect";
 import { globFiles, type GlobResult } from "../glob.ts";
-import { truncateForModel } from "../tool-limits.ts";
-import { defineTool, ToolFailure } from "./tool.ts";
+import { appendTruncationNotice, truncateForModel } from "../tool-limits.ts";
+import { defineTool, mapToToolFailure } from "./tool.ts";
 
 export const Input = Schema.Struct({
   pattern: Schema.String.pipe(
@@ -40,9 +40,11 @@ const formatGlobOutput = (result: GlobResult): string => {
   const lines = [...result.files];
 
   if (result.truncated) {
-    lines.push(
-      "",
-      `(Results truncated at ${result.files.length} files. More matches may exist.)`,
+    appendTruncationNotice(
+      lines,
+      result.files.length,
+      "files",
+      "More matches may exist.",
     );
   }
 
@@ -58,10 +60,6 @@ export const GlobTool = defineTool({
       pattern: input.pattern,
       searchPath: input.path,
       limit: input.limit,
-    }).pipe(
-      Effect.mapError(
-        (error) => new ToolFailure({ message: error.message }),
-      ),
-    ),
+    }).pipe(Effect.mapError(mapToToolFailure)),
   toModelOutput: ({ output }) => formatGlobOutput(output),
 });

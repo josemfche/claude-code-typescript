@@ -1,13 +1,15 @@
 import { Data, Effect, JSONSchema, ParseResult, Schema } from "effect";
 import type { FunctionToolCall, ToolName } from "../domain.ts";
+import { formatParseError } from "../parse.ts";
 import type { ToolDefinition } from "./definition.ts";
 
 export class ToolFailure extends Data.TaggedError("ToolFailure")<{
   readonly message: string;
 }> {}
 
-const formatParseError = (error: ParseResult.ParseError): string =>
-  ParseResult.TreeFormatter.formatErrorSync(error);
+export const mapToToolFailure = <E extends { readonly message: string }>(
+  error: E,
+): ToolFailure => new ToolFailure({ message: error.message });
 
 const jsonSchemaMetaKeys = new Set(["$schema", "$defs"]);
 
@@ -81,9 +83,6 @@ export const defineTool = <Input extends Schema.Schema.AnyNoContext, Output>(
     }).pipe(
       Effect.catchTag("ToolFailure", (failure) =>
         Effect.succeed(`error: ${failure.message}`),
-      ),
-      Effect.catchAll((cause) =>
-        Effect.succeed(`error: ${String(cause)}`),
       ),
     );
 

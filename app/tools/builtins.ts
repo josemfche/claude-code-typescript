@@ -18,12 +18,8 @@ export const builtinTools = [
 
 export const toolDefinitions = toolDefinitionsFrom(builtinTools);
 
-export const toolsByName = builtinTools.reduce(
-  (tools, tool) => ({ ...tools, [tool.name]: tool }),
-  {} as Record<ToolName, RegisteredTool>,
-);
+export const toolsByName = Object.fromEntries(
+  builtinTools.map((tool) => [tool.name, tool]),
+) as Record<ToolName, RegisteredTool>;
 
 export const isToolName = (name: string): name is ToolName => name in toolsByName;
-
-export const getBuiltinTool = (name: ToolName): RegisteredTool =>
-  toolsByName[name];

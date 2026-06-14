@@ -14,7 +14,7 @@ export const startConversation = (prompt: string): Conversation => [
   { role: "user", content: prompt },
 ];
 
-export const appendAssistantMessage = (
+const appendAssistantMessage = (
   conversation: Conversation,
   assistant: AssistantMessage,
 ): Conversation => [...conversation, assistant];
@@ -32,8 +32,6 @@ const appendUserMessage = (
   conversation: Conversation,
   content: string,
 ): Conversation => [...conversation, { role: "user", content }];
-
-const shouldStopTurn = (toolCallCount: number): boolean => toolCallCount === 0;
 
 const formatFinalContent = (
   content: string,
@@ -53,14 +51,7 @@ export const resolveTurn = (
   const nextConversation = appendAssistantMessage(conversation, turn.assistant);
   const toolCallCount = turn.assistant.toolCalls.length;
 
-  if (turn.finishReason === "tool_calls" && toolCallCount === 0) {
-    return {
-      _tag: "Continue",
-      conversation: nextConversation,
-    };
-  }
-
-  if (!shouldStopTurn(toolCallCount)) {
+  if (toolCallCount > 0 || turn.finishReason === "tool_calls") {
     return {
       _tag: "Continue",
       conversation: nextConversation,

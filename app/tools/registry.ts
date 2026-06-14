@@ -1,7 +1,7 @@
 import { Context, Effect, Layer } from "effect";
 import type { FunctionToolCall } from "../domain.ts";
 import { decodeToolName } from "../schemas.ts";
-import { getBuiltinTool } from "./builtins.ts";
+import { toolsByName } from "./builtins.ts";
 
 export type ToolRegistryApi = {
   readonly execute: (toolCall: FunctionToolCall) => Effect.Effect<string>;
@@ -22,7 +22,7 @@ const executeToolCall = (toolCall: FunctionToolCall): Effect.Effect<string> =>
       return `error: ${nameResult.left.reason}`;
     }
 
-    return yield* getBuiltinTool(nameResult.right).run(toolCall);
+    return yield* toolsByName[nameResult.right].run(toolCall);
   });
 
 export const ToolRegistryLive = Layer.succeed(ToolRegistry, {
