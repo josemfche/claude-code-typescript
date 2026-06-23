@@ -3,6 +3,7 @@ import { BashTool } from "./bash-tool.ts";
 import { EditTool } from "./edit.ts";
 import { GlobTool } from "./glob.ts";
 import { GrepTool } from "./grep.ts";
+import { LsTool } from "./ls.ts";
 import { ReadTool } from "./read.ts";
 import { type RegisteredTool, toolDefinitionsFrom } from "./tool.ts";
 import { WriteTool } from "./write.ts";
@@ -14,6 +15,7 @@ export const builtinTools = [
   BashTool,
   GrepTool,
   GlobTool,
+  LsTool,
 ] as const satisfies readonly RegisteredTool[];
 
 export const toolDefinitions = toolDefinitionsFrom(builtinTools);

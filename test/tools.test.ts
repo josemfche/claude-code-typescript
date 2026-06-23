@@ -1,10 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { Effect } from "effect";
-import { unlink, writeFile } from "node:fs/promises";
+import { mkdir, unlink, writeFile, rm } from "node:fs/promises";
 import path from "node:path";
 import { resolveTurn } from "../app/conversation.ts";
 import { editFile, formatEditOutput } from "../app/edit.ts";
 import { globToRegExp, matchesPattern } from "../app/glob.ts";
+import { formatListDirOutput, listDir } from "../app/ls.ts";
 
 const fixture = path.join("test", "fixtures", "edit-target.txt");
 
@@ -158,5 +159,54 @@ describe("glob", () => {
     const filePath = path.resolve("app/main.ts");
 
     expect(matchesPattern(pattern, filePath, filePath, true)).toBe(true);
+  });
+});
+
+describe("listDir", () => {
+  test("lists the app directory with trailing slashes on folders", async () => {
+    const result = await Effect.runPromise(
+      listDir({ searchPath: "app", limit: 200 }),
+    );
+
+    expect(result.path.endsWith(`${path.sep}app`)).toBe(true);
+    expect(result.entries.some((entry) => entry.name === "main.ts")).toBe(true);
+    expect(
+      result.entries.some(
+        (entry) => entry.name === "tools" && entry.kind === "directory",
+      ),
+    ).toBe(true);
+
+    const output = formatListDirOutput(result);
+    expect(output).toContain("tools/");
+  });
+
+  test("reports an empty directory", async () => {
+    const emptyDir = path.join("test", "fixtures", "empty-dir");
+    await mkdir(emptyDir, { recursive: true });
+
+    try {
+      const result = await Effect.runPromise(listDir({ searchPath: emptyDir }));
+      expect(result.entries).toEqual([]);
+      expect(formatListDirOutput(result)).toContain("(empty directory)");
+    } finally {
+      await rm(emptyDir, { recursive: true, force: true }).catch(() => {});
+    }
+  });
+
+  test("rejects non-directory paths", async () => {
+    await writeFile(fixture, "hello\n", "utf-8");
+
+    try {
+      const result = await Effect.runPromise(
+        Effect.either(listDir({ searchPath: fixture })),
+      );
+
+      expect(result._tag).toBe("Left");
+      if (result._tag === "Left") {
+        expect(result.left.message).toContain("path is not a directory");
+      }
+    } finally {
+      await unlink(fixture).catch(() => {});
+    }
   });
 });
