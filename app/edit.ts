@@ -17,11 +17,14 @@ export type EditResult = {
   readonly contentAfter: string;
 };
 
-export type EditOptions = {
-  readonly file_path: string;
+export type StringEdit = {
   readonly old_string: string;
   readonly new_string: string;
   readonly replace_all?: boolean | undefined;
+};
+
+export type EditOptions = StringEdit & {
+  readonly file_path: string;
 };
 
 const normalizeLineEndings = (text: string): string =>
@@ -265,6 +268,54 @@ export const formatEditOutput = (result: EditResult): string =>
     ].join("\n"),
   );
 
+export const applyStringEdit = (
+  content: string,
+  edit: StringEdit,
+): Effect.Effect<{ readonly content: string; readonly replacements: number }, EditError> =>
+  Effect.gen(function* () {
+    if (edit.old_string.length === 0) {
+      return yield* Effect.fail(
+        new EditError({
+          message:
+            "old_string cannot be empty when editing an existing file. Provide the exact text to replace, or use Write for a full-file replacement.",
+        }),
+      );
+    }
+
+    const ending = detectLineEnding(content);
+    const oldNeedle = toFileNeedle(edit.old_string, ending);
+    const newReplacement = toFileNeedle(edit.new_string, ending);
+    const replacements = countOccurrences(content, oldNeedle);
+
+    if (replacements === 0) {
+      return yield* Effect.fail(
+        new EditError({
+          message:
+            "Could not find old_string in the file. It must match exactly, including whitespace and indentation.",
+        }),
+      );
+    }
+
+    if (replacements > 1 && edit.replace_all !== true) {
+      return yield* Effect.fail(
+        new EditError({
+          message:
+            "Found multiple exact matches for old_string. Provide more surrounding context or set replace_all to true.",
+        }),
+      );
+    }
+
+    const nextContent =
+      edit.replace_all === true
+        ? content.replaceAll(oldNeedle, newReplacement)
+        : content.replace(oldNeedle, newReplacement);
+
+    return {
+      content: nextContent,
+      replacements: edit.replace_all === true ? replacements : 1,
+    };
+  });
+
 export const editFile = (
   options: EditOptions,
 ): Effect.Effect<EditResult, EditError> =>
@@ -288,33 +339,10 @@ export const editFile = (
         }),
     });
 
-    const ending = detectLineEnding(content);
-    const oldNeedle = toFileNeedle(options.old_string, ending);
-    const newReplacement = toFileNeedle(options.new_string, ending);
-    const replacements = countOccurrences(content, oldNeedle);
-
-    if (replacements === 0) {
-      return yield* Effect.fail(
-        new EditError({
-          message:
-            "Could not find old_string in the file. It must match exactly, including whitespace and indentation.",
-        }),
-      );
-    }
-
-    if (replacements > 1 && options.replace_all !== true) {
-      return yield* Effect.fail(
-        new EditError({
-          message:
-            "Found multiple exact matches for old_string. Provide more surrounding context or set replace_all to true.",
-        }),
-      );
-    }
-
-    const nextContent =
-      options.replace_all === true
-        ? content.replaceAll(oldNeedle, newReplacement)
-        : content.replace(oldNeedle, newReplacement);
+    const { content: nextContent, replacements } = yield* applyStringEdit(
+      content,
+      options,
+    );
 
     yield* Effect.tryPromise({
       try: () => writeFile(filePath, nextContent, "utf-8"),
@@ -326,7 +354,7 @@ export const editFile = (
 
     return {
       path: filePath,
-      replacements: options.replace_all === true ? replacements : 1,
+      replacements,
       contentBefore: content,
       contentAfter: nextContent,
     };

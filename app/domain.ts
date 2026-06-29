@@ -7,7 +7,17 @@ export type FunctionToolCall = {
   };
 };
 
-export type ToolName = "Read" | "Write" | "Edit" | "Bash" | "Grep" | "Glob" | "Ls";
+export type ToolName =
+  | "Read"
+  | "Write"
+  | "Edit"
+  | "MultiEdit"
+  | "Bash"
+  | "Grep"
+  | "Glob"
+  | "Ls"
+  | "Fetch"
+  | "TodoWrite";
 
 export type UserMessage = {
   readonly role: "user";
